@@ -1,6 +1,7 @@
 "use client"
 
-import { useState } from 'react'
+import { useState, useEffect, useCallback } from 'react'
+import dynamic from 'next/dynamic' // Import dynamic
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
@@ -8,6 +9,11 @@ import { Textarea } from "@/components/ui/textarea"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
+import { Loader2 } from "lucide-react" // For loading indicator
+
+// Import Leaflet CSS (ensure this path is correct for your setup)
+import 'leaflet/dist/leaflet.css'
+import L from 'leaflet' // Import Leaflet library itself for icon handling
 
 // Mock initial store data
 const initialStoreData = {
@@ -51,12 +57,94 @@ const generateTimeOptions = () => {
   return options
 }
 
+// Dynamically import the Map component to avoid SSR issues
+const MapDisplay = dynamic(
+  () => import('@/components/settings/MapDisplay'), // Adjust path if needed
+  { 
+    ssr: false,
+    loading: () => (
+      <div className="h-64 bg-gray-100 dark:bg-gray-700 rounded-md flex items-center justify-center text-gray-500 dark:text-gray-400">
+        <Loader2 className="h-5 w-5 animate-spin mr-2" />
+        Loading Map...
+      </div>
+    )
+  }
+)
+
+// Debounce function
+function debounce<F extends (...args: any[]) => any>(func: F, waitFor: number) {
+  let timeout: ReturnType<typeof setTimeout> | null = null;
+
+  const debounced = (...args: Parameters<F>) => {
+    if (timeout !== null) {
+      clearTimeout(timeout);
+      timeout = null;
+    }
+    timeout = setTimeout(() => func(...args), waitFor);
+  };
+
+  return debounced as (...args: Parameters<F>) => void;
+}
+
+// Fix for default Leaflet icon issues with build tools
+delete (L.Icon.Default.prototype as any)._getIconUrl;
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon-2x.png',
+  iconUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon.png',
+  shadowUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-shadow.png',
+});
+
 export default function StoreSettingsPage() {
   const [storeData, setStoreData] = useState(initialStoreData)
   const [businessHours, setBusinessHours] = useState(initialBusinessHours)
   const [deliverySettings, setDeliverySettings] = useState(initialDeliverySettings)
+  const [mapCoordinates, setMapCoordinates] = useState<[number, number] | null>(null) // [latitude, longitude]
+  const [isGeocoding, setIsGeocoding] = useState(false)
+  const [geocodeError, setGeocodeError] = useState<string | null>(null)
+
   const timeOptions = generateTimeOptions()
 
+  // --- Geocoding Logic --- 
+  const fetchCoordinates = async (address: string) => {
+    if (!address) {
+      setMapCoordinates(null)
+      setGeocodeError(null)
+      return
+    }
+    setIsGeocoding(true)
+    setGeocodeError(null)
+    try {
+      // Using OpenStreetMap Nominatim API (free, rate-limited)
+      const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}&limit=1`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch coordinates from Nominatim');
+      }
+      const data = await response.json();
+      if (data && data.length > 0) {
+        const { lat, lon } = data[0];
+        setMapCoordinates([parseFloat(lat), parseFloat(lon)]);
+      } else {
+        setMapCoordinates(null);
+        setGeocodeError('Address not found.');
+      }
+    } catch (error) {
+      console.error("Geocoding error:", error);
+      setMapCoordinates(null);
+      setGeocodeError('Failed to fetch location. Check address or network.');
+    } finally {
+      setIsGeocoding(false);
+    }
+  };
+
+  // Debounced version of the fetch function
+  const debouncedFetchCoordinates = useCallback(debounce(fetchCoordinates, 1000), []); // 1 second debounce
+
+  // Effect to fetch coordinates when address changes
+  useEffect(() => {
+    debouncedFetchCoordinates(storeData.address);
+  }, [storeData.address, debouncedFetchCoordinates]);
+
+  // --- Handler functions (remain largely unchanged) ---
   const handleStoreDataChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target
     setStoreData(prev => ({ ...prev, [name]: value }))
@@ -75,8 +163,8 @@ export default function StoreSettingsPage() {
   }
 
   const handleSaveChanges = () => {
-    console.log("Saving store information:", storeData)
-    // Add API call logic here
+    console.log("Saving store information:", storeData, "Coordinates:", mapCoordinates)
+    // Add API call logic here, potentially saving mapCoordinates
   }
 
   const handleSaveBusinessHours = () => {
@@ -166,16 +254,40 @@ export default function StoreSettingsPage() {
                 name="address"
                 className="mt-1"
                 rows={2}
+                placeholder="Enter full store address"
                 value={storeData.address}
                 onChange={handleStoreDataChange}
               />
+               {isGeocoding && (
+                  <p className="text-xs text-gray-500 dark:text-gray-400 flex items-center"> 
+                    <Loader2 className="h-3 w-3 animate-spin mr-1"/> Looking up location...
+                  </p>
+                )}
+                {geocodeError && (
+                   <p className="text-xs text-red-600 dark:text-red-400 mt-1">{geocodeError}</p>
+                )}
+            </div>
+
+            <div className="mt-4">
+              <Label className="text-sm font-medium text-gray-700 dark:text-gray-300">Store Location Map</Label>
+              <div className="mt-1 rounded-md overflow-hidden border border-gray-200 dark:border-gray-700">
+                <MapDisplay 
+                  coordinates={mapCoordinates}
+                  storeName={storeData.storeName} 
+                />
+              </div>
+              {!isGeocoding && !mapCoordinates && storeData.address && !geocodeError && (
+                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Enter a valid address to see the location on the map.</p>
+              )}
             </div>
 
             <div className="flex justify-end pt-4 border-t border-gray-100 dark:border-gray-700/50">
               <Button 
                 className="bg-gray-900 text-white hover:bg-gray-700 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-gray-200"
                 onClick={handleSaveChanges}
+                disabled={isGeocoding} // Disable save while geocoding
               >
+                {isGeocoding ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                 Save Changes
               </Button>
             </div>

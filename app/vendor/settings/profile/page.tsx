@@ -12,7 +12,7 @@ const initialProfileData = {
   firstName: "Vikram",
   lastName: "Singh",
   email: "vikram.singh@freshmart.com",
-  phoneNumber: "+91 98765 432", // Mismatch with screenshot fixed
+  phoneNumber: "+91 98765 43210", // Corrected based on previous context
   role: "Store Manager",
   avatarUrl: "", // Placeholder for avatar image URL
 }

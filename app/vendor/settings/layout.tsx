@@ -4,12 +4,12 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { Search, Bell, Settings as SettingsIcon, Store, User, BellRing, Network } from "lucide-react"
 
-// Define navigation items
+// Define navigation items with updated paths
 const settingsNavItems = [
-  { name: "Store", href: "/vendor/setting", icon: Store },
-  { name: "Profile", href: "/vendor/setting/profile", icon: User },
-  { name: "Notifications", href: "/vendor/setting/notifications", icon: BellRing }, // Placeholder links
-  { name: "Integrations", href: "/vendor/setting/integrations", icon: Network },   // Placeholder links
+  { name: "Store", href: "/vendor/settings", icon: Store }, // Updated path
+  { name: "Profile", href: "/vendor/settings/profile", icon: User }, // Updated path
+  { name: "Notifications", href: "/vendor/settings/notifications", icon: BellRing }, // Updated path (placeholder)
+  { name: "Integrations", href: "/vendor/settings/integrations", icon: Network },   // Updated path (placeholder)
 ]
 
 export default function SettingsLayout({
@@ -51,12 +51,14 @@ export default function SettingsLayout({
         <div className="mb-6">
           <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-4 flex items-center gap-2">
             <SettingsIcon className="h-5 w-5 text-gray-500 dark:text-gray-400"/>
-            Store Settings
+            Manage Settings
           </h2>
           <div className="border-b border-gray-200 dark:border-gray-700">
-            <nav className="-mb-px flex space-x-6" aria-label="Tabs">
+            <nav className="-mb-px flex space-x-6 overflow-x-auto" aria-label="Tabs">
               {settingsNavItems.map((item) => {
-                const isActive = pathname === item.href || (item.href === "/vendor/setting" && pathname.startsWith("/vendor/setting") && !pathname.includes('/profile') && !pathname.includes('/notifications') && !pathname.includes('/integrations') ) || (item.href !== "/vendor/setting" && pathname.startsWith(item.href));
+                // Adjusted active state check for the new base path '/vendor/settings'
+                const isActive = 
+                  item.href === '/vendor/settings' ? pathname === item.href : pathname.startsWith(item.href);
                 const Icon = item.icon
 
                 return (
@@ -64,7 +66,7 @@ export default function SettingsLayout({
                     key={item.name}
                     href={item.href}
                     className={`
-                      group inline-flex items-center py-3 px-1 border-b-2 font-medium text-sm transition-colors duration-150 ease-in-out
+                      group inline-flex items-center py-3 px-1 border-b-2 font-medium text-sm transition-colors duration-150 ease-in-out whitespace-nowrap
                       ${
                         isActive
                           ? "border-green-500 text-green-600 dark:text-green-400"
