@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { BarChart2, Package, ShoppingCart, Settings, Truck, LogOut, Navigation } from "lucide-react"
+import { BarChart2, Package, ShoppingCart, Settings, Truck, LogOut, Navigation, LineChart } from "lucide-react"
 
 const VendorSidebar = () => {
   const pathname = usePathname()
@@ -17,6 +17,7 @@ const VendorSidebar = () => {
     { href: "/vendor/products", icon: Package, label: "Products" },
     { href: "/vendor/orders", icon: ShoppingCart, label: "Orders" },
     { href: "/vendor/delivery", icon: Navigation, label: "Delivery" },
+    { href: "/vendor/analytics", icon: LineChart, label: "Analytics" },
     { href: "/vendor/inventory", icon: Truck, label: "Inventory" },
     { href: "/vendor/settings", icon: Settings, label: "Settings" },
   ]
