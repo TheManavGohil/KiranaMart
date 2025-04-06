@@ -1,9 +1,27 @@
-import DashboardStats from "@/components/dashboard-stats"
-import Link from "next/link"
-import { ShoppingBag, Package, AlertCircle, Clock, TrendingUp, ChevronRight, Bell, ArrowUpRight, Store, Activity } from "lucide-react"
-import Image from "next/image"
+"use client";
+
+import { useEffect, useState } from 'react';
+import { getUser, redirectIfNotAuthenticated } from '@/lib/auth';
+import Link from "next/link";
+import { ShoppingBag, Package, AlertCircle, Clock, TrendingUp, ChevronRight, Bell, ArrowUpRight, Store, Activity, DollarSign, Users } from "lucide-react";
 
 export default function VendorDashboardPage() {
+  const [user, setUser] = useState<any>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    // Redirect if not authenticated
+    redirectIfNotAuthenticated();
+    
+    // Get user data
+    const userData = getUser();
+    if (userData) {
+      setUser(userData);
+    }
+    
+    setIsLoading(false);
+  }, []);
+
   // In a real app, fetch this data from API
   const stats = {
     revenue: 4890,
@@ -44,6 +62,14 @@ export default function VendorDashboardPage() {
     return "Good Evening";
   };
 
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-green-500"></div>
+      </div>
+    );
+  }
+
   return (
     <div className="animate-fadeIn">
       {/* Dashboard Header with Greeting */}
@@ -51,7 +77,7 @@ export default function VendorDashboardPage() {
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center">
           <div>
             <h1 className="text-3xl font-bold text-white mb-2">
-              {getGreeting()}, Vendor!
+              {getGreeting()}, {user?.name || 'Vendor'}!
             </h1>
             <p className="text-green-50 text-opacity-90">Here's what's happening with your store today.</p>
           </div>
@@ -67,7 +93,7 @@ export default function VendorDashboardPage() {
           </div>
         </div>
       </div>
-
+        
       {/* Action Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5 -mt-16 mb-8 px-1">
         <div className="bg-white rounded-xl shadow-lg hover:shadow-xl transition-shadow border-l-4 border-blue-500 overflow-hidden">
@@ -88,7 +114,7 @@ export default function VendorDashboardPage() {
             <ChevronRight className="w-4 h-4 ml-1" />
           </Link>
         </div>
-
+        
         <div className="bg-white rounded-xl shadow-lg hover:shadow-xl transition-shadow border-l-4 border-purple-500 overflow-hidden">
           <div className="p-5">
             <div className="flex justify-between items-center">
@@ -107,7 +133,7 @@ export default function VendorDashboardPage() {
             <ChevronRight className="w-4 h-4 ml-1" />
           </Link>
         </div>
-
+        
         <div className="bg-white rounded-xl shadow-lg hover:shadow-xl transition-shadow border-l-4 border-amber-500 overflow-hidden">
           <div className="p-5">
             <div className="flex justify-between items-center">
@@ -140,20 +166,139 @@ export default function VendorDashboardPage() {
             </div>
             <p className="text-gray-500 text-sm mt-2">Check your store performance metrics</p>
           </div>
-          <Link href="#analytics" className="flex items-center justify-center py-3 bg-green-50 text-green-600 font-medium hover:bg-green-100 transition-colors">
+          <Link href="/vendor/analytics" className="flex items-center justify-center py-3 bg-green-50 text-green-600 font-medium hover:bg-green-100 transition-colors">
             <span>View Stats</span>
             <ChevronRight className="w-4 h-4 ml-1" />
           </Link>
         </div>
       </div>
 
-      {/* Stats Cards */}
-      <div id="analytics">
+      {/* Performance Metrics */}
+      <div id="performance-metrics" className="mb-8">
         <h2 className="text-2xl font-bold text-gray-800 mb-4 flex items-center">
           <TrendingUp className="mr-2 h-6 w-6 text-green-500" />
           Performance Metrics
         </h2>
-        <DashboardStats data={stats} />
+        
+        {/* Stats Cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+            <div className="flex justify-between">
+              <div>
+                <p className="text-gray-500 dark:text-gray-400 text-sm">Total Revenue</p>
+                <p className="text-2xl font-bold text-gray-800 dark:text-white">${stats.revenue}</p>
+              </div>
+              <div className="rounded-full bg-green-100 dark:bg-green-900 p-3 h-12 w-12 flex items-center justify-center">
+                <DollarSign className="h-6 w-6 text-green-600 dark:text-green-400" />
+              </div>
+            </div>
+            <div className="flex items-center mt-4">
+              <span className="text-green-500 text-sm">12.5% from last month</span>
+            </div>
+          </div>
+          
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+            <div className="flex justify-between">
+              <div>
+                <p className="text-gray-500 dark:text-gray-400 text-sm">Total Orders</p>
+                <p className="text-2xl font-bold text-gray-800 dark:text-white">{stats.orders}</p>
+              </div>
+              <div className="rounded-full bg-blue-100 dark:bg-blue-900 p-3 h-12 w-12 flex items-center justify-center">
+                <ShoppingBag className="h-6 w-6 text-blue-600 dark:text-blue-400" />
+              </div>
+            </div>
+            <div className="flex items-center mt-4">
+              <span className="text-green-500 text-sm">8.2% from last month</span>
+            </div>
+          </div>
+          
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+            <div className="flex justify-between">
+              <div>
+                <p className="text-gray-500 dark:text-gray-400 text-sm">Total Customers</p>
+                <p className="text-2xl font-bold text-gray-800 dark:text-white">{stats.customers}</p>
+              </div>
+              <div className="rounded-full bg-purple-100 dark:bg-purple-900 p-3 h-12 w-12 flex items-center justify-center">
+                <Users className="h-6 w-6 text-purple-600 dark:text-purple-400" />
+              </div>
+            </div>
+            <div className="flex items-center mt-4">
+              <span className="text-green-500 text-sm">5.1% from last month</span>
+            </div>
+          </div>
+          
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+            <div className="flex justify-between">
+              <div>
+                <p className="text-gray-500 dark:text-gray-400 text-sm">Active Products</p>
+                <p className="text-2xl font-bold text-gray-800 dark:text-white">{stats.products}</p>
+              </div>
+              <div className="rounded-full bg-yellow-100 dark:bg-yellow-900 p-3 h-12 w-12 flex items-center justify-center">
+                <Package className="h-6 w-6 text-yellow-600 dark:text-yellow-400" />
+              </div>
+            </div>
+            <div className="flex items-center mt-4">
+              <span className="text-red-500 text-sm">2.3% from last month</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Monthly Sales Chart */}
+      <div className="mb-8">
+        <h2 className="text-2xl font-bold text-gray-800 mb-4">Monthly Sales</h2>
+        <div className="bg-white p-6 rounded-lg shadow">
+          {/* Y-axis and grid */}
+          <div className="relative h-72">
+            {/* Y-axis labels and grid lines */}
+            <div className="absolute top-0 left-0 h-full flex flex-col justify-between pr-2">
+              {[4000, 3000, 2000, 1000, 0].map((value) => (
+                <div key={value} className="flex items-center">
+                  <span className="text-xs text-gray-500 w-10 text-right">${value}</span>
+                  <div className="h-px w-full border-t border-gray-100 ml-2" style={{ width: "calc(100% + 580px)" }}></div>
+                </div>
+              ))}
+            </div>
+            
+            {/* Chart container with bars */}
+            <div className="ml-14 h-64 flex items-end justify-between">
+              {stats.salesData.map((month, index) => (
+                <div key={month.name} className="flex flex-col items-center group relative">
+                  {/* Bar with gradient and animation */}
+                  <div
+                    className="w-14 rounded-t-md transition-all duration-300 relative overflow-hidden animate-in slide-in-from-bottom duration-500"
+                    style={{ 
+                      height: `${(month.sales / 4000) * 100}%`,
+                      animationDelay: `${index * 100}ms`,
+                    }}
+                  >
+                    {/* Gradient background */}
+                    <div className="absolute inset-0 bg-gradient-to-t from-green-600 to-green-400 hover:from-green-700 hover:to-green-500 transition-colors"></div>
+                    
+                    {/* Value label on top */}
+                    <div className="opacity-0 group-hover:opacity-100 absolute -top-8 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white px-2 py-1 rounded text-xs whitespace-nowrap transition-opacity">
+                      ${month.sales.toLocaleString()}
+                    </div>
+                  </div>
+                  
+                  {/* Month label */}
+                  <span className="text-sm mt-2 font-medium text-gray-700">{month.name}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+          
+          {/* Legend and insights */}
+          <div className="mt-4 border-t pt-4 flex justify-between items-center">
+            <div className="flex items-center">
+              <div className="w-3 h-3 bg-gradient-to-t from-green-600 to-green-400 rounded-sm mr-1"></div>
+              <span className="text-xs text-gray-600">Monthly Revenue</span>
+            </div>
+            <div className="text-sm text-gray-600">
+              <span className="font-semibold text-green-600">Highest:</span> ${Math.max(...stats.salesData.map(m => m.sales)).toLocaleString()} (Jun)
+            </div>
+          </div>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -217,9 +362,9 @@ export default function VendorDashboardPage() {
           </div>
         </div>
 
-        {/* Low Stock & Notifications */}
+        {/* Low Stock & Store Overview */}
         <div className="space-y-6">
-          {/* Low Stock */}
+          {/* Low Stock Alert */}
           <div className="bg-white p-6 rounded-xl shadow-md hover:shadow-lg transition-shadow border border-red-100">
             <div className="flex items-center mb-6">
               <div className="bg-red-100 p-2 rounded-lg mr-3">
@@ -241,7 +386,7 @@ export default function VendorDashboardPage() {
                   </p>
                 </div>
                 <Link 
-                  href={`/vendor/products/${product.id}`} 
+                  href={`/vendor/inventory`} 
                   className="text-sm bg-red-50 text-red-600 hover:bg-red-100 px-3 py-1 rounded-full transition-colors font-medium"
                 >
                   Restock
@@ -258,7 +403,7 @@ export default function VendorDashboardPage() {
             </Link>
           </div>
 
-          {/* Store Performance */}
+          {/* Store Overview */}
           <div className="bg-white p-6 rounded-xl shadow-md hover:shadow-lg transition-shadow border border-gray-100">
             <div className="flex items-center mb-6">
               <div className="bg-green-100 p-2 rounded-lg mr-3">
@@ -307,6 +452,6 @@ export default function VendorDashboardPage() {
         </div>
       </div>
     </div>
-  )
+  );
 }
 
