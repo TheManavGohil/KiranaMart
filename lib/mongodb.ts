@@ -111,6 +111,12 @@ export async function getInventoryCollection() {
   return db.collection(COLLECTIONS.INVENTORY)
 }
 
+// Get the categories collection
+export async function getCategoryCollection() {
+  const db = await getDb();
+  return db.collection(COLLECTIONS.CATEGORIES);
+}
+
 // Export a module-scoped MongoClient promise. By doing this in a
 // separate module, the client can be shared across functions.
 export default clientPromise
