@@ -21,6 +21,7 @@ const MapDisplayComponent = ({ coordinates, storeName }: MapDisplayProps) => {
 
   return (
     <MapContainer 
+      key={position.toString()}
       center={position}
       zoom={zoomLevel}
       scrollWheelZoom={false}

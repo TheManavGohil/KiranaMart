@@ -1,13 +1,78 @@
 "use client";
 
 import { useEffect, useState } from 'react';
-import { getUser, redirectIfNotAuthenticated } from '@/lib/auth';
+import { getUser, getToken, redirectIfNotAuthenticated } from '@/lib/auth';
 import Link from "next/link";
 import { ShoppingBag, Package, AlertCircle, Clock, TrendingUp, ChevronRight, Bell, ArrowUpRight, Store, Activity, DollarSign, Users } from "lucide-react";
+
+// Define types for our dashboard data
+interface SalesData {
+  name: string;
+  sales: number;
+}
+
+interface DashboardStats {
+  revenue: number;
+  orders: number;
+  customers: number;
+  products: number;
+  salesData: SalesData[];
+}
+
+interface RecentOrder {
+  id: string;
+  customer: string;
+  date: string;
+  total: number;
+  status: string;
+}
+
+interface LowStockProduct {
+  id: string;
+  name: string;
+  stock: number;
+}
+
+interface DashboardData {
+  stats: DashboardStats;
+  recentOrders: RecentOrder[];
+  lowStockProducts: LowStockProduct[];
+}
 
 export default function VendorDashboardPage() {
   const [user, setUser] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  // Fetch dashboard data from API
+  const fetchDashboardData = async () => {
+    try {
+      const token = getToken();
+      if (!token) {
+        throw new Error('No authentication token found');
+      }
+
+      const response = await fetch('/api/vendor/dashboard', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to fetch dashboard data');
+      }
+
+      const data = await response.json();
+      setDashboardData(data);
+    } catch (err: any) {
+      console.error('Error fetching dashboard data:', err);
+      setError(err.message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   useEffect(() => {
     // Redirect if not authenticated
@@ -19,40 +84,9 @@ export default function VendorDashboardPage() {
       setUser(userData);
     }
     
-    setIsLoading(false);
+    // Fetch dashboard data
+    fetchDashboardData();
   }, []);
-
-  // In a real app, fetch this data from API
-  const stats = {
-    revenue: 4890,
-    orders: 234,
-    customers: 89,
-    products: 45,
-    salesData: [
-      { name: "Jan", sales: 3000 },
-      { name: "Feb", sales: 2000 },
-      { name: "Mar", sales: 2780 },
-      { name: "Apr", sales: 1890 },
-      { name: "May", sales: 2390 },
-      { name: "Jun", sales: 3490 },
-    ],
-  }
-
-  // Dummy recent orders
-  const recentOrders = [
-    { id: "3201", customer: "Sarah Johnson", date: "2023-07-15", total: 56.78, status: "Pending" },
-    { id: "3200", customer: "Michael Brown", date: "2023-07-14", total: 89.32, status: "Preparing" },
-    { id: "3199", customer: "Jessica Lee", date: "2023-07-14", total: 45.99, status: "Out for Delivery" },
-    { id: "3198", customer: "David Wilson", date: "2023-07-13", total: 23.5, status: "Delivered" },
-    { id: "3197", customer: "Emma Davis", date: "2023-07-12", total: 67.25, status: "Delivered" },
-  ]
-
-  // Dummy low stock products
-  const lowStockProducts = [
-    { id: "101", name: "Organic Avocados", stock: 3 },
-    { id: "102", name: "Fresh Milk", stock: 5 },
-    { id: "103", name: "Whole Wheat Bread", stock: 2 },
-  ]
 
   // Get current time of day for greeting
   const getGreeting = () => {
@@ -62,6 +96,7 @@ export default function VendorDashboardPage() {
     return "Good Evening";
   };
 
+  // Fallback when loading
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -69,6 +104,36 @@ export default function VendorDashboardPage() {
       </div>
     );
   }
+
+  // Error state
+  if (error) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="bg-red-50 p-8 rounded-lg shadow-md max-w-md">
+          <h2 className="text-xl font-bold text-red-700 mb-2">Error Loading Dashboard</h2>
+          <p className="text-red-600 mb-4">{error}</p>
+          <button 
+            onClick={() => fetchDashboardData()}
+            className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 transition-colors"
+          >
+            Try Again
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Fallback to empty data if API fails
+  const stats = dashboardData?.stats || {
+    revenue: 0,
+    orders: 0,
+    customers: 0,
+    products: 0,
+    salesData: []
+  };
+
+  const recentOrders = dashboardData?.recentOrders || [];
+  const lowStockProducts = dashboardData?.lowStockProducts || [];
 
   return (
     <div className="animate-fadeIn">
@@ -95,60 +160,60 @@ export default function VendorDashboardPage() {
       </div>
         
       {/* Action Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5 -mt-16 mb-8 px-1">
-        <div className="bg-white rounded-xl shadow-lg hover:shadow-xl transition-shadow border-l-4 border-blue-500 overflow-hidden">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8 mt-8">
+        <div className="bg-white rounded-xl shadow-lg hover:shadow-xl transition-shadow border-l-4 border-red-500 overflow-hidden">
           <div className="p-5">
             <div className="flex justify-between items-center">
               <div>
-                <span className="text-blue-600 font-semibold text-sm">QUICK ACTION</span>
-                <h3 className="text-lg font-bold mt-1">Manage Orders</h3>
+                <span className="text-red-600 font-semibold text-sm">QUICK ACTION</span>
+                <h3 className="text-lg font-bold mt-1">New Product</h3>
               </div>
-              <div className="bg-blue-100 p-3 rounded-full text-blue-600">
-                <ShoppingBag className="w-6 h-6" />
-              </div>
-            </div>
-            <p className="text-gray-500 text-sm mt-2">Process pending orders and manage deliveries</p>
-          </div>
-          <Link href="/vendor/orders" className="flex items-center justify-center py-3 bg-blue-50 text-blue-600 font-medium hover:bg-blue-100 transition-colors">
-            <span>View Orders</span>
-            <ChevronRight className="w-4 h-4 ml-1" />
-          </Link>
-        </div>
-        
-        <div className="bg-white rounded-xl shadow-lg hover:shadow-xl transition-shadow border-l-4 border-purple-500 overflow-hidden">
-          <div className="p-5">
-            <div className="flex justify-between items-center">
-              <div>
-                <span className="text-purple-600 font-semibold text-sm">QUICK ACTION</span>
-                <h3 className="text-lg font-bold mt-1">Add Product</h3>
-              </div>
-              <div className="bg-purple-100 p-3 rounded-full text-purple-600">
+              <div className="bg-red-100 p-3 rounded-full text-red-600">
                 <Package className="w-6 h-6" />
               </div>
             </div>
-            <p className="text-gray-500 text-sm mt-2">Add new products to your inventory</p>
+            <p className="text-gray-500 text-sm mt-2">Add a new product to your inventory</p>
           </div>
-          <Link href="/vendor/products" className="flex items-center justify-center py-3 bg-purple-50 text-purple-600 font-medium hover:bg-purple-100 transition-colors">
+          <Link href="/vendor/inventory" className="flex items-center justify-center py-3 bg-red-50 text-red-600 font-medium hover:bg-red-100 transition-colors">
             <span>Add Product</span>
             <ChevronRight className="w-4 h-4 ml-1" />
           </Link>
         </div>
-        
+
         <div className="bg-white rounded-xl shadow-lg hover:shadow-xl transition-shadow border-l-4 border-amber-500 overflow-hidden">
           <div className="p-5">
             <div className="flex justify-between items-center">
               <div>
-                <span className="text-amber-600 font-semibold text-sm">QUICK ACTION</span>
-                <h3 className="text-lg font-bold mt-1">Update Stock</h3>
+                <span className="text-amber-600 font-semibold text-sm">ALERT</span>
+                <h3 className="text-lg font-bold mt-1">Low Stock Items</h3>
               </div>
               <div className="bg-amber-100 p-3 rounded-full text-amber-600">
                 <AlertCircle className="w-6 h-6" />
               </div>
             </div>
-            <p className="text-gray-500 text-sm mt-2">Update inventory levels for your products</p>
+            <p className="text-gray-500 text-sm mt-2">{lowStockProducts.length} items need to be restocked</p>
           </div>
-          <Link href="/vendor/inventory" className="flex items-center justify-center py-3 bg-amber-50 text-amber-600 font-medium hover:bg-amber-100 transition-colors">
-            <span>Manage Inventory</span>
+          <Link href="/vendor/inventory?filter=low-stock" className="flex items-center justify-center py-3 bg-amber-50 text-amber-600 font-medium hover:bg-amber-100 transition-colors">
+            <span>View Items</span>
+            <ChevronRight className="w-4 h-4 ml-1" />
+          </Link>
+        </div>
+
+        <div className="bg-white rounded-xl shadow-lg hover:shadow-xl transition-shadow border-l-4 border-blue-500 overflow-hidden">
+          <div className="p-5">
+            <div className="flex justify-between items-center">
+              <div>
+                <span className="text-blue-600 font-semibold text-sm">QUICK ACTION</span>
+                <h3 className="text-lg font-bold mt-1">Pending Orders</h3>
+              </div>
+              <div className="bg-blue-100 p-3 rounded-full text-blue-600">
+                <Clock className="w-6 h-6" />
+              </div>
+            </div>
+            <p className="text-gray-500 text-sm mt-2">You have {recentOrders.filter(order => order.status === 'Pending').length} pending orders</p>
+          </div>
+          <Link href="/vendor/orders?status=pending" className="flex items-center justify-center py-3 bg-blue-50 text-blue-600 font-medium hover:bg-blue-100 transition-colors">
+            <span>Process Orders</span>
             <ChevronRight className="w-4 h-4 ml-1" />
           </Link>
         </div>
@@ -186,7 +251,7 @@ export default function VendorDashboardPage() {
             <div className="flex justify-between">
               <div>
                 <p className="text-gray-500 dark:text-gray-400 text-sm">Total Revenue</p>
-                <p className="text-2xl font-bold text-gray-800 dark:text-white">${stats.revenue}</p>
+                <p className="text-2xl font-bold text-gray-800 dark:text-white">${stats.revenue.toFixed(2)}</p>
               </div>
               <div className="rounded-full bg-green-100 dark:bg-green-900 p-3 h-12 w-12 flex items-center justify-center">
                 <DollarSign className="h-6 w-6 text-green-600 dark:text-green-400" />
@@ -295,7 +360,13 @@ export default function VendorDashboardPage() {
               <span className="text-xs text-gray-600">Monthly Revenue</span>
             </div>
             <div className="text-sm text-gray-600">
-              <span className="font-semibold text-green-600">Highest:</span> ${Math.max(...stats.salesData.map(m => m.sales)).toLocaleString()} (Jun)
+              {stats.salesData.length > 0 && (
+                <>
+                  <span className="font-semibold text-green-600">Highest:</span> $
+                  {Math.max(...stats.salesData.map(m => m.sales)).toLocaleString()} 
+                  ({stats.salesData.reduce((a, b) => a.sales > b.sales ? a : b).name})
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -331,79 +402,41 @@ export default function VendorDashboardPage() {
               </thead>
               <tbody>
                 {recentOrders.map((order) => (
-                  <tr key={order.id} className="border-b border-gray-200 hover:bg-gray-50 transition-colors">
-                    <td className="py-3 px-4 font-medium">
-                      <Link href={`/vendor/orders/${order.id}`} className="text-green-600 hover:text-green-700 flex items-center">
-                        #{order.id}
-                      </Link>
-                    </td>
-                    <td className="py-3 px-4 text-gray-700">{order.customer}</td>
-                    <td className="py-3 px-4 text-gray-700">{order.date}</td>
-                    <td className="py-3 px-4 font-medium">${order.total.toFixed(2)}</td>
+                  <tr key={order.id} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
+                    <td className="py-3 px-4 text-gray-800 font-medium">#{order.id.slice(-4)}</td>
+                    <td className="py-3 px-4 text-gray-800">{order.customer}</td>
+                    <td className="py-3 px-4 text-gray-600">{order.date}</td>
+                    <td className="py-3 px-4 text-gray-800 font-medium">${order.total.toFixed(2)}</td>
                     <td className="py-3 px-4">
-                      <span
-                        className={`px-2 py-1 rounded-full text-xs font-medium ${
-                          order.status === "Pending"
-                            ? "bg-yellow-100 text-yellow-800"
-                            : order.status === "Preparing"
-                              ? "bg-blue-100 text-blue-800"
-                              : order.status === "Out for Delivery"
-                                ? "bg-purple-100 text-purple-800"
-                                : "bg-green-100 text-green-800"
-                        }`}
-                      >
+                      <span className={`inline-block px-2 py-1 text-xs font-medium rounded-full ${
+                        order.status === 'Delivered' 
+                          ? 'bg-green-100 text-green-700' 
+                          : order.status === 'Pending' 
+                            ? 'bg-yellow-100 text-yellow-700'
+                            : order.status === 'Preparing'
+                              ? 'bg-blue-100 text-blue-700'
+                              : 'bg-purple-100 text-purple-700'
+                      }`}>
                         {order.status}
                       </span>
                     </td>
                   </tr>
                 ))}
+
+                {recentOrders.length === 0 && (
+                  <tr>
+                    <td colSpan={5} className="py-8 text-center text-gray-500">
+                      No recent orders found
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
         </div>
-
-        {/* Low Stock & Store Overview */}
+        
+        {/* Store Overview & Low Stock */}
         <div className="space-y-6">
-          {/* Low Stock Alert */}
-          <div className="bg-white p-6 rounded-xl shadow-md hover:shadow-lg transition-shadow border border-red-100">
-            <div className="flex items-center mb-6">
-              <div className="bg-red-100 p-2 rounded-lg mr-3">
-                <AlertCircle className="w-5 h-5 text-red-500" />
-              </div>
-              <h2 className="text-xl font-bold text-gray-800">Low Stock Alert</h2>
-            </div>
-
-            {lowStockProducts.map((product) => (
-              <div
-                key={product.id}
-                className="flex justify-between items-center p-3 mb-2 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors"
-              >
-                <div>
-                  <p className="font-medium text-gray-800">{product.name}</p>
-                  <p className="text-sm text-red-500 flex items-center">
-                    <AlertCircle className="w-3 h-3 mr-1" />
-                    Only {product.stock} items left
-                  </p>
-                </div>
-                <Link 
-                  href={`/vendor/inventory`} 
-                  className="text-sm bg-red-50 text-red-600 hover:bg-red-100 px-3 py-1 rounded-full transition-colors font-medium"
-                >
-                  Restock
-                </Link>
-              </div>
-            ))}
-
-            <Link
-              href="/vendor/inventory"
-              className="mt-4 text-red-600 hover:text-red-700 font-medium text-sm flex items-center justify-center bg-red-50 hover:bg-red-100 p-2 rounded-lg transition-colors"
-            >
-              <Package className="w-4 h-4 mr-2" />
-              Manage Inventory
-            </Link>
-          </div>
-
-          {/* Store Overview */}
           <div className="bg-white p-6 rounded-xl shadow-md hover:shadow-lg transition-shadow border border-gray-100">
             <div className="flex items-center mb-6">
               <div className="bg-green-100 p-2 rounded-lg mr-3">
@@ -419,8 +452,9 @@ export default function VendorDashboardPage() {
                   <span className="text-gray-700">Orders Today</span>
                 </div>
                 <div className="flex items-center">
-                  <span className="font-bold text-gray-800">12</span>
-                  <span className="text-xs bg-green-100 text-green-700 px-2 ml-2 rounded-full">+2</span>
+                  <span className="font-bold text-gray-800">
+                    {recentOrders.filter(order => order.date === new Date().toISOString().split('T')[0]).length}
+                  </span>
                 </div>
               </div>
 
@@ -429,7 +463,7 @@ export default function VendorDashboardPage() {
                   <Package className="w-5 h-5 text-purple-500 mr-3" />
                   <span className="text-gray-700">Active Products</span>
                 </div>
-                <span className="font-bold text-gray-800">45</span>
+                <span className="font-bold text-gray-800">{stats.products}</span>
               </div>
 
               <div className="flex items-center justify-between p-3 rounded-lg bg-gray-50">
@@ -437,16 +471,43 @@ export default function VendorDashboardPage() {
                   <AlertCircle className="w-5 h-5 text-amber-500 mr-3" />
                   <span className="text-gray-700">Low Stock Items</span>
                 </div>
-                <span className="font-bold text-red-500">3</span>
+                <span className="font-bold text-red-500">{lowStockProducts.length}</span>
               </div>
+            </div>
+          </div>
 
-              <div className="flex items-center justify-between p-3 rounded-lg bg-gray-50">
-                <div className="flex items-center">
-                  <Clock className="w-5 h-5 text-yellow-500 mr-3" />
-                  <span className="text-gray-700">Pending Orders</span>
-                </div>
-                <span className="font-bold text-gray-800">7</span>
+          {/* Low Stock Items */}
+          <div className="bg-white p-6 rounded-xl shadow-md hover:shadow-lg transition-shadow border border-gray-100">
+            <div className="flex justify-between items-center mb-6">
+              <div className="flex items-center">
+                <AlertCircle className="h-5 w-5 text-amber-500 mr-2" />
+                <h2 className="text-xl font-bold text-gray-800">Low Stock Items</h2>
               </div>
+              <Link 
+                href="/vendor/inventory?filter=low-stock" 
+                className="flex items-center text-amber-600 hover:text-amber-700 font-medium text-sm bg-amber-50 hover:bg-amber-100 px-3 py-1 rounded-full transition-colors"
+              >
+                View All
+                <ArrowUpRight className="ml-1 h-3 w-3" />
+              </Link>
+            </div>
+
+            <div className="space-y-3">
+              {lowStockProducts.map((product) => (
+                <div key={product.id} className="flex justify-between items-center p-3 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors">
+                  <span className="font-medium text-gray-800">{product.name}</span>
+                  <span className={`font-medium ${product.stock === 0 ? 'text-red-600' : 'text-amber-600'}`}>
+                    {product.stock} {product.stock === 1 ? 'unit' : 'units'}
+                  </span>
+                </div>
+              ))}
+
+              {lowStockProducts.length === 0 && (
+                <div className="text-center py-6 text-gray-500">
+                  <Package className="h-8 w-8 mx-auto mb-2 text-gray-400" />
+                  <p>No low stock items</p>
+                </div>
+              )}
             </div>
           </div>
         </div>

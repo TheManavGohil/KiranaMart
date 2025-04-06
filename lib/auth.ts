@@ -1,6 +1,22 @@
 import Router from 'next/router';
 import Cookies from 'js-cookie';
+import jwt from 'jsonwebtoken';
 
+// Verify JWT token (server-side)
+export const verifyToken = (token: string): any => {
+  try {
+    const secret = process.env.JWT_SECRET;
+    if (!secret) {
+      throw new Error('JWT_SECRET is not defined in environment variables');
+    }
+    
+    const decoded = jwt.verify(token, secret);
+    return decoded;
+  } catch (error) {
+    console.error('Token verification failed:', error);
+    return null;
+  }
+};
 
 // Save token to both localStorage and cookies
 export const setToken = (token: string): void => {

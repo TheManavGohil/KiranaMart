@@ -1,122 +1,226 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import Image from "next/image"
 import {
-  Search, Filter, ArrowUpDown, AlertTriangle, Edit, Truck, PackageCheck, Plus
+  Search, Filter, ArrowUpDown, AlertTriangle, Edit, Truck, PackageCheck, Plus, Loader2
 } from "lucide-react"
+import { getToken } from "@/lib/auth"
 
-// Mock inventory data
-const mockInventory = Array(12)
-  .fill(null)
-  .map((_, i) => ({
-    id: `p${i + 1}`,
-    name: `Product ${i + 1}`,
-    category: i % 3 === 0 ? "Fruits" : i % 3 === 1 ? "Vegetables" : "Dairy",
-    stock: i % 4 === 0 ? 3 : 10 + i * 3, // Some low stock items
-    imageUrl: "/placeholder.png",
-    price: 5.99 + i * 0.5,
-    unit: i % 3 === 0 ? "kg" : i % 3 === 1 ? "bundle" : "pack",
-    description: `Description for Product ${i + 1}. This is a sample product description.`,
-    lastRestocked: new Date(Date.now() - (i * 2 + 1) * 86400000).toISOString().split("T")[0],
-  }))
+// Define types for our product data
+interface Product {
+  _id: string;
+  name: string;
+  category: string;
+  stock: number;
+  imageUrl: string;
+  price: number;
+  unit: string;
+  description: string;
+  lastRestocked: string;
+  vendorId: string;
+}
 
 export default function VendorInventoryProductsPage() {
-  const [inventory, setInventory] = useState(mockInventory)
-  const [searchTerm, setSearchTerm] = useState("")
-  const [categoryFilter, setCategoryFilter] = useState("All")
-  const [showLowStock, setShowLowStock] = useState(false)
-  const [isRestockModalOpen, setIsRestockModalOpen] = useState(false)
-  const [isEditModalOpen, setIsEditModalOpen] = useState(false)
-  const [selectedProduct, setSelectedProduct] = useState<any>(null)
-  const [restockAmount, setRestockAmount] = useState("")
-  const [editedProduct, setEditedProduct] = useState<any>(null)
+  const [inventory, setInventory] = useState<Product[]>([]);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("All");
+  const [showLowStock, setShowLowStock] = useState(false);
+  const [isRestockModalOpen, setIsRestockModalOpen] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [restockAmount, setRestockAmount] = useState("");
+  const [editedProduct, setEditedProduct] = useState<Product | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const categories = ["All", "Fruits", "Vegetables", "Dairy", "Bakery", "Grains"]
-  const units = ["kg", "g", "pack", "bundle", "dozen", "piece", "liter"]
+  const categories = ["All", "Fruits", "Vegetables", "Dairy", "Bakery", "Grains"];
+  const units = ["kg", "g", "pack", "bundle", "dozen", "piece", "liter"];
 
-  const filteredInventory = inventory.filter((item) => {
-    const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase())
-    const matchesCategory = categoryFilter === "All" || item.category === categoryFilter
-    const matchesLowStock = showLowStock ? item.stock <= 5 : true
-    return matchesSearch && matchesCategory && matchesLowStock
-  })
+  // Fetch inventory data from API
+  const fetchInventory = async () => {
+    try {
+      setIsLoading(true);
+      const token = getToken();
+      if (!token) {
+        throw new Error('No authentication token found');
+      }
 
-  const openRestockModal = (product: any) => {
-    setSelectedProduct(product)
-    setRestockAmount("")
-    setIsRestockModalOpen(true)
-  }
+      const response = await fetch('/api/vendor/inventory', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
 
-  const openEditModal = (product: any) => {
-    setSelectedProduct(product)
-    setEditedProduct({...product})
-    setIsEditModalOpen(true)
-  }
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to fetch inventory data');
+      }
 
-  const handleRestock = () => {
-    if (!selectedProduct || !restockAmount) return
-
-    const amount = Number.parseInt(restockAmount)
-    if (isNaN(amount) || amount <= 0) return
-
-    setInventory((prev) =>
-      prev.map((item) =>
-        item.id === selectedProduct.id
-          ? {
-              ...item,
-              stock: item.stock + amount,
-              lastRestocked: new Date().toISOString().split("T")[0],
-            }
-          : item,
-      ),
-    )
-
-    setIsRestockModalOpen(false)
-  }
-
-  const handleEditChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
-    const { name, value } = e.target
-    
-    setEditedProduct((prev: any) => ({
-      ...prev,
-      [name]: name === "price" || name === "stock" ? 
-        parseFloat(value) || 0 : 
-        value
-    }))
-  }
-
-  const isFieldModified = (fieldName: string) => {
-    if (!selectedProduct || !editedProduct) return false
-    
-    if (fieldName === "price" || fieldName === "stock") {
-      return parseFloat(selectedProduct[fieldName]) !== parseFloat(editedProduct[fieldName])
+      const data = await response.json();
+      setInventory(data);
+    } catch (err: any) {
+      console.error('Error fetching inventory:', err);
+      setError(err.message);
+    } finally {
+      setIsLoading(false);
     }
+  };
+
+  // Handle adding a new product (placeholder for now)
+  const handleAddProduct = () => {
+    console.log("Add product clicked");
+    // Will implement the add product modal later
+  };
+
+  // Open the restock modal for a product
+  const openRestockModal = (product: Product) => {
+    setSelectedProduct(product);
+    setRestockAmount("");
+    setIsRestockModalOpen(true);
+  };
+
+  // Open the edit modal for a product
+  const openEditModal = (product: Product) => {
+    setSelectedProduct(product);
+    setEditedProduct({ ...product });
+    setIsEditModalOpen(true);
+  };
+
+  // Handle restocking a product
+  const handleRestock = async () => {
+    if (!selectedProduct || !restockAmount) return;
     
-    return selectedProduct[fieldName] !== editedProduct[fieldName]
+    try {
+      const newStock = selectedProduct.stock + parseInt(restockAmount);
+      const token = getToken();
+      
+      if (!token) {
+        throw new Error('No authentication token found');
+      }
+      
+      const response = await fetch(`/api/vendor/inventory?id=${selectedProduct._id}`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ stock: newStock })
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to restock product');
+      }
+      
+      // Update the local state
+      setInventory(inventory.map(item => 
+        item._id === selectedProduct._id ? { ...item, stock: newStock, lastRestocked: new Date().toISOString().split('T')[0] } : item
+      ));
+      
+      setIsRestockModalOpen(false);
+    } catch (err: any) {
+      console.error('Error restocking product:', err);
+      alert(`Error: ${err.message}`);
+    }
+  };
+
+  // Handle saving product edits
+  const handleSaveEdit = async () => {
+    if (!editedProduct) return;
+    
+    try {
+      const token = getToken();
+      
+      if (!token) {
+        throw new Error('No authentication token found');
+      }
+      
+      const response = await fetch(`/api/vendor/inventory?id=${editedProduct._id}`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(editedProduct)
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to update product');
+      }
+      
+      // Update the local state
+      setInventory(inventory.map(item => 
+        item._id === editedProduct._id ? editedProduct : item
+      ));
+      
+      setIsEditModalOpen(false);
+    } catch (err: any) {
+      console.error('Error updating product:', err);
+      alert(`Error: ${err.message}`);
+    }
+  };
+
+  // Fetch inventory data on component mount
+  useEffect(() => {
+    fetchInventory();
+  }, []);
+
+  // Filter inventory based on search, category, and low stock
+  const filteredInventory = inventory.filter((item) => {
+    const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesCategory = categoryFilter === "All" || item.category === categoryFilter;
+    const matchesLowStock = showLowStock ? item.stock <= 5 : true;
+    return matchesSearch && matchesCategory && matchesLowStock;
+  });
+
+  // Calculate inventory statistics
+  const totalProducts = inventory.length;
+  const lowStockCount = inventory.filter(item => item.stock <= 5).length;
+  const outOfStockCount = inventory.filter(item => item.stock === 0).length;
+  const restockedTodayCount = inventory.filter(item => 
+    item.lastRestocked === new Date().toISOString().split('T')[0]
+  ).length;
+
+  // Loading state
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="flex flex-col items-center space-y-4">
+          <Loader2 className="h-12 w-12 animate-spin text-green-500" />
+          <p className="text-gray-600 dark:text-gray-400">Loading inventory...</p>
+        </div>
+      </div>
+    );
   }
 
-  const handleSaveEdit = () => {
-    if (!editedProduct) return
-
-    setInventory((prev) =>
-      prev.map((item) =>
-        item.id === selectedProduct.id ? { 
-          ...editedProduct,
-          lastRestocked: 
-            isFieldModified("stock") ? new Date().toISOString().split("T")[0] : item.lastRestocked
-        } : item
-      )
-    )
-
-    setIsEditModalOpen(false)
+  // Error state
+  if (error) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="bg-red-50 dark:bg-red-900/20 p-8 rounded-lg shadow-md max-w-md">
+          <h2 className="text-xl font-bold text-red-700 dark:text-red-400 mb-2">Error Loading Inventory</h2>
+          <p className="text-red-600 dark:text-red-300 mb-4">{error}</p>
+          <button 
+            onClick={() => fetchInventory()}
+            className="bg-red-600 dark:bg-red-700 text-white px-4 py-2 rounded hover:bg-red-700 dark:hover:bg-red-600 transition-colors"
+          >
+            Try Again
+          </button>
+        </div>
+      </div>
+    );
   }
 
   return (
     <div className="animate-fadeIn">
       <div className="flex justify-between items-center mb-8">
         <div/>
-        <button className="btn-primary flex items-center gap-2 px-4 py-2 rounded-lg bg-green-600 hover:bg-green-700 text-white transition-all dark:bg-green-500 dark:hover:bg-green-600">
+        <button 
+          onClick={handleAddProduct}
+          className="btn-primary flex items-center gap-2 px-4 py-2 rounded-lg bg-green-600 hover:bg-green-700 text-white transition-all dark:bg-green-500 dark:hover:bg-green-600"
+        >
           <Plus className="w-5 h-5" />
           <span>Add New Product</span>
         </button>
@@ -127,7 +231,7 @@ export default function VendorInventoryProductsPage() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-gray-500 dark:text-gray-400 text-sm font-medium">Total Products</p>
-              <h3 className="font-bold text-2xl mt-1 text-gray-800 dark:text-gray-100">{inventory.length}</h3>
+              <h3 className="font-bold text-2xl mt-1 text-gray-800 dark:text-gray-100">{totalProducts}</h3>
             </div>
             <div className="p-3 rounded-full bg-green-100 dark:bg-green-900/50 text-green-600 dark:text-green-400">
               <PackageCheck className="w-6 h-6" />
@@ -138,7 +242,7 @@ export default function VendorInventoryProductsPage() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-gray-500 dark:text-gray-400 text-sm font-medium">Low Stock Items</p>
-              <h3 className="font-bold text-2xl mt-1 text-gray-800 dark:text-gray-100">{inventory.filter((item) => item.stock <= 5).length}</h3>
+              <h3 className="font-bold text-2xl mt-1 text-gray-800 dark:text-gray-100">{lowStockCount}</h3>
             </div>
             <div className="p-3 rounded-full bg-red-100 dark:bg-red-900/50 text-red-600 dark:text-red-400">
               <AlertTriangle className="w-6 h-6" />
@@ -149,7 +253,7 @@ export default function VendorInventoryProductsPage() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-gray-500 dark:text-gray-400 text-sm font-medium">Restocked Today</p>
-              <h3 className="font-bold text-2xl mt-1 text-gray-800 dark:text-gray-100">{inventory.filter(item => item.lastRestocked === new Date().toISOString().split("T")[0]).length}</h3>
+              <h3 className="font-bold text-2xl mt-1 text-gray-800 dark:text-gray-100">{restockedTodayCount}</h3>
             </div>
             <div className="p-3 rounded-full bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400">
               <Truck className="w-6 h-6" />
@@ -160,7 +264,7 @@ export default function VendorInventoryProductsPage() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-gray-500 dark:text-gray-400 text-sm font-medium">Out of Stock</p>
-              <h3 className="font-bold text-2xl mt-1 text-gray-800 dark:text-gray-100">{inventory.filter((item) => item.stock === 0).length}</h3>
+              <h3 className="font-bold text-2xl mt-1 text-gray-800 dark:text-gray-100">{outOfStockCount}</h3>
             </div>
             <div className="p-3 rounded-full bg-yellow-100 dark:bg-yellow-900/50 text-yellow-600 dark:text-yellow-400">
               <AlertTriangle className="w-6 h-6" />
@@ -256,7 +360,7 @@ export default function VendorInventoryProductsPage() {
             </thead>
             <tbody>
               {filteredInventory.map((item) => (
-                <tr key={item.id} className="border-b border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
+                <tr key={item._id} className="border-b border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
                   <td className="py-3 px-4">
                     <div className="relative w-12 h-12 rounded-md overflow-hidden border border-gray-200 dark:border-gray-600">
                       <Image src={item.imageUrl || "/placeholder.svg"} alt={item.name} fill className="object-cover" />
@@ -277,7 +381,7 @@ export default function VendorInventoryProductsPage() {
                       </span>
                     )}
                   </td>
-                  <td className="py-3 px-4 text-gray-600 dark:text-gray-400">{item.lastRestocked}</td>
+                  <td className="py-3 px-4 text-gray-600 dark:text-gray-400">{item.lastRestocked || "N/A"}</td>
                   <td className="py-3 px-4 text-right">
                     <div className="flex justify-end gap-1">
                       <button 
@@ -311,53 +415,52 @@ export default function VendorInventoryProductsPage() {
         )}
       </div>
 
+      {/* Restock Modal */}
       {isRestockModalOpen && selectedProduct && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 animate-fadeIn">
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg w-full max-w-md mx-4 animate-slideUp border border-gray-200 dark:border-gray-700">
             <div className="p-6">
               <div className="flex justify-between items-center mb-6">
                 <h2 className="text-xl font-bold text-gray-800 dark:text-white flex items-center">
-                  <Truck className="mr-2 h-5 w-5 text-green-500"/> Restock Product
+                 <Truck className="mr-2 h-5 w-5 text-green-500"/> Restock Item
                 </h2>
                 <button onClick={() => setIsRestockModalOpen(false)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors">
                   ✕
                 </button>
               </div>
-
-              <div className="mb-4">
-                <p className="text-gray-700 dark:text-gray-300"><span className="font-medium">Product:</span> {selectedProduct.name}</p>
-                <p className="text-gray-700 dark:text-gray-300"><span className="font-medium">Current Stock:</span> {selectedProduct.stock}</p>
-              </div>
-
-              <div className="mb-4">
-                <label htmlFor="restock-amount" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Quantity to Add</label>
+              
+              <div className="mb-6">
+                <p className="text-gray-600 dark:text-gray-300 mb-1">Product: <span className="font-semibold text-gray-800 dark:text-white">{selectedProduct.name}</span></p>
+                <p className="text-gray-600 dark:text-gray-300 mb-3">Current Stock: <span className="font-semibold text-gray-800 dark:text-white">{selectedProduct.stock}</span></p>
+                
+                <label className="block text-gray-700 dark:text-gray-300 mb-1">Add Stock</label>
                 <input
                   type="number"
-                  id="restock-amount"
-                  className="form-input"
-                  min="1"
-                  placeholder="Enter quantity"
                   value={restockAmount}
                   onChange={(e) => setRestockAmount(e.target.value)}
-                  required
+                  className="form-input w-full rounded-lg"
+                  min="1"
+                  placeholder="Enter amount to add"
                 />
               </div>
-
-              <div className="flex justify-end gap-3 mt-6">
-                <button 
-                  type="button" 
-                  className="px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+              
+              <div className="flex gap-3">
+                <button
                   onClick={() => setIsRestockModalOpen(false)}
+                  className="flex-1 py-2 px-4 bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 rounded-lg transition-colors text-gray-800 dark:text-gray-200"
                 >
                   Cancel
                 </button>
-                <button 
-                  type="button" 
-                  className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50"
+                <button
                   onClick={handleRestock}
-                  disabled={!restockAmount || Number.parseInt(restockAmount) <= 0}
+                  disabled={!restockAmount || parseInt(restockAmount) <= 0}
+                  className={`flex-1 py-2 px-4 rounded-lg transition-colors ${
+                    !restockAmount || parseInt(restockAmount) <= 0
+                      ? "bg-green-300 cursor-not-allowed text-white"
+                      : "bg-green-600 hover:bg-green-700 text-white"
+                  }`}
                 >
-                  Add Stock
+                  Restock Now
                 </button>
               </div>
             </div>
@@ -365,7 +468,8 @@ export default function VendorInventoryProductsPage() {
         </div>
       )}
 
-      {isEditModalOpen && selectedProduct && (
+      {/* Edit Product Modal */}
+      {isEditModalOpen && selectedProduct && editedProduct && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 animate-fadeIn">
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg w-full max-w-2xl mx-4 animate-slideUp border border-gray-200 dark:border-gray-700">
             <div className="p-6">
@@ -377,163 +481,120 @@ export default function VendorInventoryProductsPage() {
                   ✕
                 </button>
               </div>
-
-              <form onSubmit={(e) => {e.preventDefault(); handleSaveEdit();}}>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[60vh] overflow-y-auto pr-2">
-                   <div className="md:col-span-2 flex items-center mb-4">
-                    <div className="relative w-16 h-16 rounded-md overflow-hidden mr-4 border border-gray-200 dark:border-gray-600">
-                      <Image
-                        src={editedProduct.imageUrl || "/placeholder.svg"}
-                        alt={editedProduct.name}
-                        fill
-                        className="object-cover"
-                      />
-                    </div>
-                    <div>
-                      <h3 className="font-semibold text-gray-800 dark:text-gray-100 text-lg">Product ID: {editedProduct.id}</h3>
-                      <p className="text-sm text-gray-500 dark:text-gray-400">Edit product details below</p>
-                    </div>
-                  </div>
-
-                  <div className="mb-4">
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Product Name</label>
-                    <input
-                      type="text"
-                      className={`form-input ${isFieldModified("name") ? "border-green-500 dark:border-green-600 focus:ring-green-300 dark:focus:ring-green-600" : ""}`}
-                      name="name"
-                      value={editedProduct.name}
-                      onChange={handleEditChange}
-                      required
-                    />
-                    {isFieldModified("name") && <p className="text-xs text-green-600 mt-1">Modified</p>}
-                  </div>
-
-                  <div className="mb-4">
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Category</label>
-                    <select
-                      className={`form-input ${isFieldModified("category") ? "border-green-500 dark:border-green-600 focus:ring-green-300 dark:focus:ring-green-600" : ""}`}
-                      name="category"
-                      value={editedProduct.category}
-                      onChange={handleEditChange}
-                      required
-                    >
-                      {categories
-                        .filter((c) => c !== "All")
-                        .map((category) => (
-                          <option key={category} value={category}>
-                            {category}
-                          </option>
-                        ))}
-                    </select>
-                     {isFieldModified("category") && <p className="text-xs text-green-600 mt-1">Modified</p>}
-                  </div>
-
-                  <div className="mb-4">
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Price (₹)</label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      className={`form-input ${isFieldModified("price") ? "border-green-500 dark:border-green-600 focus:ring-green-300 dark:focus:ring-green-600" : ""}`}
-                      name="price"
-                      value={editedProduct.price}
-                      onChange={handleEditChange}
-                      required
-                    />
-                     {isFieldModified("price") && <p className="text-xs text-green-600 mt-1">Modified from ₹{selectedProduct.price.toFixed(2)}</p>}
-                  </div>
-
-                  <div className="mb-4">
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Unit</label>
-                    <select
-                      className={`form-input ${isFieldModified("unit") ? "border-green-500 dark:border-green-600 focus:ring-green-300 dark:focus:ring-green-600" : ""}`}
-                      name="unit"
-                      value={editedProduct.unit}
-                      onChange={handleEditChange}
-                      required
-                    >
-                      {units.map((unit) => (
-                        <option key={unit} value={unit}>
-                          {unit}
-                        </option>
-                      ))}
-                    </select>
-                    {isFieldModified("unit") && <p className="text-xs text-green-600 mt-1">Modified</p>}
-                  </div>
-
-                  <div className="mb-4">
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Stock</label>
-                    <input
-                      type="number"
-                      min="0"
-                      className={`form-input ${isFieldModified("stock") ? "border-green-500 dark:border-green-600 focus:ring-green-300 dark:focus:ring-green-600" : ""}`}
-                      name="stock"
-                      value={editedProduct.stock}
-                      onChange={handleEditChange}
-                      required
-                    />
-                     {isFieldModified("stock") && <p className="text-xs text-green-600 mt-1">Modified from {selectedProduct.stock}</p>}
-                  </div>
-
-                  <div className="md:col-span-2 mb-4">
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Description</label>
-                    <textarea
-                      className={`form-input ${isFieldModified("description") ? "border-green-500 dark:border-green-600 focus:ring-green-300 dark:focus:ring-green-600" : ""}`}
-                      name="description"
-                      rows={3}
-                      value={editedProduct.description}
-                      onChange={handleEditChange}
-                      required
-                    />
-                    {isFieldModified("description") && <p className="text-xs text-green-600 mt-1">Modified</p>}
-                  </div>
-
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                <div>
+                  <label className="block text-gray-700 dark:text-gray-300 mb-1">Product Name</label>
+                  <input
+                    type="text"
+                    value={editedProduct.name}
+                    onChange={(e) => setEditedProduct({...editedProduct, name: e.target.value})}
+                    className="form-input w-full rounded-lg"
+                    placeholder="Product Name"
+                  />
                 </div>
                 
-                <div className="md:col-span-2 mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
-                  <h4 className="font-medium mb-2 text-gray-800 dark:text-gray-100">Summary of Changes</h4>
-                  {Object.keys(editedProduct).some(key => isFieldModified(key)) ? (
-                     <ul className="text-sm text-gray-600 dark:text-gray-300 bg-green-50 dark:bg-green-900/50 p-3 rounded-md border border-green-100 dark:border-green-800">
-                        {isFieldModified("name") && <li className="py-1">• Name changed</li>}
-                        {isFieldModified("category") && <li className="py-1">• Category changed</li>}
-                        {isFieldModified("stock") && (
-                          <li className="py-1">• Stock updated from <span className="font-medium">{selectedProduct.stock}</span> to <span className="font-medium text-green-700 dark:text-green-300">{editedProduct.stock}</span></li>
-                        )}
-                        {isFieldModified("price") && (
-                          <li className="py-1">• Price updated from <span className="font-medium">₹{selectedProduct.price.toFixed(2)}</span> to <span className="font-medium text-green-700 dark:text-green-300">₹{editedProduct.price.toFixed(2)}</span></li>
-                        )}
-                        {isFieldModified("unit") && (
-                          <li className="py-1">• Unit changed from <span className="font-medium">{selectedProduct.unit}</span> to <span className="font-medium text-green-700 dark:text-green-300">{editedProduct.unit}</span></li>
-                        )}
-                        {isFieldModified("description") && <li className="py-1">• Description updated</li>}
-                      </ul>
-                  ) : (
-                     <p className="text-sm text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-700/50 p-3 rounded-md border border-gray-200 dark:border-gray-600">No changes made yet</p>
-                  )}
-                </div>
-
-                <div className="flex justify-end gap-3 mt-6">
-                  <button
-                    type="button"
-                    className="px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-                    onClick={() => setIsEditModalOpen(false)}
+                <div>
+                  <label className="block text-gray-700 dark:text-gray-300 mb-1">Category</label>
+                  <select
+                    value={editedProduct.category}
+                    onChange={(e) => setEditedProduct({...editedProduct, category: e.target.value})}
+                    className="form-input w-full rounded-lg"
                   >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                    disabled={!Object.keys(editedProduct).some(key => isFieldModified(key))}
-                  >
-                    Save Changes
-                  </button>
+                    {categories.filter(cat => cat !== 'All').map((category) => (
+                      <option key={category} value={category}>
+                        {category}
+                      </option>
+                    ))}
+                  </select>
                 </div>
-              </form>
+                
+                <div>
+                  <label className="block text-gray-700 dark:text-gray-300 mb-1">Price</label>
+                  <input
+                    type="number"
+                    value={editedProduct.price}
+                    onChange={(e) => setEditedProduct({...editedProduct, price: parseFloat(e.target.value)})}
+                    className="form-input w-full rounded-lg"
+                    min="0"
+                    step="0.01"
+                    placeholder="Price"
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-gray-700 dark:text-gray-300 mb-1">Unit</label>
+                  <select
+                    value={editedProduct.unit}
+                    onChange={(e) => setEditedProduct({...editedProduct, unit: e.target.value})}
+                    className="form-input w-full rounded-lg"
+                  >
+                    {units.map((unit) => (
+                      <option key={unit} value={unit}>
+                        {unit}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                
+                <div>
+                  <label className="block text-gray-700 dark:text-gray-300 mb-1">Current Stock</label>
+                  <input
+                    type="number"
+                    value={editedProduct.stock}
+                    onChange={(e) => setEditedProduct({...editedProduct, stock: parseInt(e.target.value)})}
+                    className="form-input w-full rounded-lg"
+                    min="0"
+                    placeholder="Stock Level"
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-gray-700 dark:text-gray-300 mb-1">Image URL</label>
+                  <input
+                    type="text"
+                    value={editedProduct.imageUrl}
+                    onChange={(e) => setEditedProduct({...editedProduct, imageUrl: e.target.value})}
+                    className="form-input w-full rounded-lg"
+                    placeholder="Image URL"
+                  />
+                </div>
+                
+                <div className="md:col-span-2">
+                  <label className="block text-gray-700 dark:text-gray-300 mb-1">Description</label>
+                  <textarea
+                    value={editedProduct.description}
+                    onChange={(e) => setEditedProduct({...editedProduct, description: e.target.value})}
+                    className="form-input w-full rounded-lg min-h-[100px]"
+                    placeholder="Product Description"
+                  />
+                </div>
+              </div>
+              
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setIsEditModalOpen(false)}
+                  className="flex-1 py-2 px-4 bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 rounded-lg transition-colors text-gray-800 dark:text-gray-200"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSaveEdit}
+                  disabled={!editedProduct.name || editedProduct.price <= 0}
+                  className={`flex-1 py-2 px-4 rounded-lg transition-colors ${
+                    !editedProduct.name || editedProduct.price <= 0
+                      ? "bg-blue-300 cursor-not-allowed text-white"
+                      : "bg-blue-600 hover:bg-blue-700 text-white"
+                  }`}
+                >
+                  Save Changes
+                </button>
+              </div>
             </div>
           </div>
         </div>
       )}
     </div>
-  )
+  );
 }
 
