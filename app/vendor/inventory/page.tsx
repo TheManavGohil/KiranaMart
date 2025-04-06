@@ -6,6 +6,7 @@ import {
   Search, Filter, ArrowUpDown, AlertTriangle, Edit, Truck, PackageCheck, Plus, Loader2
 } from "lucide-react"
 import { getToken } from "@/lib/auth"
+import AddProductModal, { ProductData } from "./components/AddProductModal"
 
 // Define types for our product data
 interface Product {
@@ -28,6 +29,7 @@ export default function VendorInventoryProductsPage() {
   const [showLowStock, setShowLowStock] = useState(false);
   const [isRestockModalOpen, setIsRestockModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [restockAmount, setRestockAmount] = useState("");
   const [editedProduct, setEditedProduct] = useState<Product | null>(null);
@@ -67,10 +69,45 @@ export default function VendorInventoryProductsPage() {
     }
   };
 
-  // Handle adding a new product (placeholder for now)
+  // Handle adding a new product
   const handleAddProduct = () => {
-    console.log("Add product clicked");
-    // Will implement the add product modal later
+    setIsAddModalOpen(true);
+  };
+
+  // Handle submitting a new product
+  const handleSubmitNewProduct = async (productData: ProductData) => {
+    try {
+      const token = getToken();
+      if (!token) {
+        throw new Error('No authentication token found');
+      }
+      
+      const response = await fetch('/api/vendor/inventory', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(productData)
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to add product');
+      }
+      
+      const result = await response.json();
+      
+      // Add the new product to the inventory
+      setInventory([...inventory, result.product]);
+      
+      // Close the modal
+      setIsAddModalOpen(false);
+    } catch (err: any) {
+      console.error('Error adding product:', err);
+      alert(`Error: ${err.message}`);
+      throw err; // Rethrow to be handled by the modal
+    }
   };
 
   // Open the restock modal for a product
@@ -273,194 +310,206 @@ export default function VendorInventoryProductsPage() {
         </div>
       </div>
 
-      <div className="bg-white dark:bg-gray-800 p-5 rounded-lg shadow-md mb-6 border border-gray-100 dark:border-gray-700/50">
+      <div className="bg-white dark:bg-gray-800 p-4 md:p-6 rounded-lg shadow-md mb-6 border border-gray-100 dark:border-gray-700/50">
         <div className="flex flex-col md:flex-row gap-4">
-          <div className="flex-grow">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Search products in table..."
-                className="form-input pl-10 w-full rounded-lg"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-              />
+          <div className="relative flex-grow">
+            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+              <Search className="h-5 w-5 text-gray-400" />
             </div>
+            <input
+              type="text"
+              className="block w-full pl-10 pr-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md leading-5 bg-white dark:bg-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 sm:text-sm"
+              placeholder="Search products..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
           </div>
-          <div className="flex flex-wrap md:flex-nowrap gap-4">
-            <div>
+          
+          <div className="flex flex-col md:flex-row gap-4">
+            <div className="relative">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <Filter className="h-5 w-5 text-gray-400" />
+              </div>
               <select
-                className="form-input py-2 rounded-lg w-full md:w-auto"
+                className="block w-full pl-10 pr-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md leading-5 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 sm:text-sm"
                 value={categoryFilter}
                 onChange={(e) => setCategoryFilter(e.target.value)}
               >
                 {categories.map((category) => (
                   <option key={category} value={category}>
-                    Category: {category}
+                    {category}
                   </option>
                 ))}
               </select>
             </div>
+            
             <div className="flex items-center">
               <input
                 type="checkbox"
-                id="low-stock"
-                className="mr-2 h-4 w-4 rounded text-green-600 focus:ring-green-500 dark:bg-gray-700 dark:border-gray-600 dark:checked:bg-green-500"
+                id="lowStock"
+                className="h-4 w-4 text-green-600 focus:ring-green-500 border-gray-300 rounded"
                 checked={showLowStock}
                 onChange={(e) => setShowLowStock(e.target.checked)}
               />
-              <label htmlFor="low-stock" className="text-gray-700 dark:text-gray-300 text-sm">Low Stock Only</label>
+              <label htmlFor="lowStock" className="ml-2 block text-sm text-gray-900 dark:text-gray-100">
+                Low Stock Only
+              </label>
             </div>
-            <button className="btn-secondary flex items-center justify-center px-4 py-2 rounded-lg text-sm">
-              <Filter className="w-4 h-4 mr-2" />
-              More Filters
-            </button>
           </div>
         </div>
       </div>
 
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden border border-gray-100 dark:border-gray-700">
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="bg-gray-50 dark:bg-gray-700/50 border-b border-gray-200 dark:border-gray-700">
-                <th className="text-left py-3 px-4 font-medium text-gray-700 dark:text-gray-300 text-sm uppercase tracking-wider">Image</th>
-                <th className="text-left py-3 px-4 font-medium text-gray-700 dark:text-gray-300 text-sm uppercase tracking-wider">
-                  <button className="flex items-center hover:text-green-600 dark:hover:text-green-400 transition-colors">
-                    Product
-                    <ArrowUpDown className="ml-1 w-4 h-4" />
-                  </button>
-                </th>
-                <th className="text-left py-3 px-4 font-medium text-gray-700 dark:text-gray-300 text-sm uppercase tracking-wider">
-                  <button className="flex items-center hover:text-green-600 dark:hover:text-green-400 transition-colors">
-                    Category
-                    <ArrowUpDown className="ml-1 w-4 h-4" />
-                  </button>
-                </th>
-                <th className="text-left py-3 px-4 font-medium text-gray-700 dark:text-gray-300 text-sm uppercase tracking-wider">
-                  <button className="flex items-center hover:text-green-600 dark:hover:text-green-400 transition-colors">
-                    Price
-                    <ArrowUpDown className="ml-1 w-4 h-4" />
-                  </button>
-                </th>
-                <th className="text-left py-3 px-4 font-medium text-gray-700 dark:text-gray-300 text-sm uppercase tracking-wider">
-                  <button className="flex items-center hover:text-green-600 dark:hover:text-green-400 transition-colors">
-                    Stock
-                    <ArrowUpDown className="ml-1 w-4 h-4" />
-                  </button>
-                </th>
-                <th className="text-left py-3 px-4 font-medium text-gray-700 dark:text-gray-300 text-sm uppercase tracking-wider">
-                  <button className="flex items-center hover:text-green-600 dark:hover:text-green-400 transition-colors">
-                    Last Restocked
-                    <ArrowUpDown className="ml-1 w-4 h-4" />
-                  </button>
-                </th>
-                <th className="text-right py-3 px-4 font-medium text-gray-700 dark:text-gray-300 text-sm uppercase tracking-wider">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredInventory.map((item) => (
-                <tr key={item._id} className="border-b border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
-                  <td className="py-3 px-4">
-                    <div className="relative w-12 h-12 rounded-md overflow-hidden border border-gray-200 dark:border-gray-600">
-                      <Image src={item.imageUrl || "/placeholder.svg"} alt={item.name} fill className="object-cover" />
-                    </div>
-                  </td>
-                  <td className="py-3 px-4 font-medium text-gray-800 dark:text-gray-100">{item.name}</td>
-                  <td className="py-3 px-4">
-                    <span className="px-2 py-1 bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200 rounded-full text-xs font-medium">
-                      {item.category}
-                    </span>
-                  </td>
-                  <td className="py-3 px-4 font-medium text-gray-800 dark:text-gray-100">₹{item.price.toFixed(2)}/{item.unit}</td>
-                  <td className="py-3 px-4">
-                    <span className={`${item.stock <= 5 ? "text-red-600 dark:text-red-400" : "text-green-600 dark:text-green-400"} font-medium`}>{item.stock}</span>
-                    {item.stock <= 5 && (
-                      <span className="ml-2 text-xs inline-block px-2 py-1 bg-red-100 dark:bg-red-900/50 text-red-600 dark:text-red-300 rounded-full font-medium">
-                        {item.stock === 0 ? "Out of Stock" : "Low Stock"}
-                      </span>
-                    )}
-                  </td>
-                  <td className="py-3 px-4 text-gray-600 dark:text-gray-400">{item.lastRestocked || "N/A"}</td>
-                  <td className="py-3 px-4 text-right">
-                    <div className="flex justify-end gap-1">
-                      <button 
-                        onClick={() => openRestockModal(item)}
-                        className="p-2 text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/50 rounded-full transition-colors"
-                        aria-label={`Restock ${item.name}`}
-                      >
-                        <Truck className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => openEditModal(item)}
-                        className="p-2 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/50 rounded-full transition-colors"
-                        aria-label={`Edit ${item.name}`}
-                      >
-                        <Edit className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md border border-gray-100 dark:border-gray-700/50 overflow-hidden">
+        <div className="p-4 md:p-6">
+          <h2 className="text-xl font-bold mb-6 text-gray-800 dark:text-white">Inventory Items ({filteredInventory.length})</h2>
+          
+          {filteredInventory.length === 0 ? (
+            <div className="text-center py-10">
+              <p className="text-gray-500 dark:text-gray-400">No products found. Try adjusting your filters.</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                <thead className="bg-gray-50 dark:bg-gray-700/50">
+                  <tr>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                      Product
+                    </th>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider cursor-pointer" onClick={() => {}}>
+                      <div className="flex items-center">
+                        Category
+                        <ArrowUpDown className="ml-1 h-4 w-4" />
+                      </div>
+                    </th>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider cursor-pointer" onClick={() => {}}>
+                      <div className="flex items-center">
+                        Stock
+                        <ArrowUpDown className="ml-1 h-4 w-4" />
+                      </div>
+                    </th>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider cursor-pointer" onClick={() => {}}>
+                      <div className="flex items-center">
+                        Price
+                        <ArrowUpDown className="ml-1 h-4 w-4" />
+                      </div>
+                    </th>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                      Last Restocked
+                    </th>
+                    <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                      Actions
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                  {filteredInventory.map((product) => (
+                    <tr key={product._id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex items-center">
+                          <div className="h-10 w-10 flex-shrink-0 mr-3">
+                            <Image
+                              className="h-10 w-10 rounded-full object-cover"
+                              src={product.imageUrl || "/placeholder.svg"}
+                              alt={product.name}
+                              width={40}
+                              height={40}
+                            />
+                          </div>
+                          <div>
+                            <div className="text-sm font-medium text-gray-900 dark:text-gray-100">{product.name}</div>
+                            <div className="text-sm text-gray-500 dark:text-gray-400">{product.unit}</div>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 dark:bg-green-900/40 text-green-800 dark:text-green-300">
+                          {product.category}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className={`text-sm ${
+                          product.stock <= 0 
+                            ? "text-red-600 dark:text-red-400 font-medium" 
+                            : product.stock <= 5 
+                              ? "text-yellow-600 dark:text-yellow-400 font-medium" 
+                              : "text-gray-900 dark:text-gray-100"
+                        }`}>
+                          {product.stock <= 0 
+                            ? "Out of stock" 
+                            : product.stock <= 5 
+                              ? `${product.stock} - Low Stock!` 
+                              : product.stock}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm text-gray-900 dark:text-gray-100">₹{product.price.toFixed(2)}</div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                        {product.lastRestocked || "Not recorded"}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                        <div className="flex justify-end space-x-2">
+                          <button
+                            onClick={() => openRestockModal(product)}
+                            className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300"
+                            title="Restock"
+                          >
+                            <Truck className="h-5 w-5" />
+                          </button>
+                          <button
+                            onClick={() => openEditModal(product)}
+                            className="text-yellow-600 hover:text-yellow-900 dark:text-yellow-400 dark:hover:text-yellow-300"
+                            title="Edit"
+                          >
+                            <Edit className="h-5 w-5" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
-
-        {filteredInventory.length === 0 && (
-          <div className="py-12 text-center text-gray-500 dark:text-gray-400">
-            <PackageCheck className="w-12 h-12 mx-auto mb-4 text-gray-400 dark:text-gray-500" />
-            <p className="text-lg font-medium">No inventory found matching your criteria.</p>
-            <p className="text-sm mt-1">Try adjusting your search or filters.</p>
-          </div>
-        )}
       </div>
 
       {/* Restock Modal */}
       {isRestockModalOpen && selectedProduct && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 animate-fadeIn">
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg w-full max-w-md mx-4 animate-slideUp border border-gray-200 dark:border-gray-700">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg w-full max-w-md mx-4 animate-slideUp">
             <div className="p-6">
-              <div className="flex justify-between items-center mb-6">
-                <h2 className="text-xl font-bold text-gray-800 dark:text-white flex items-center">
-                 <Truck className="mr-2 h-5 w-5 text-green-500"/> Restock Item
-                </h2>
-                <button onClick={() => setIsRestockModalOpen(false)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors">
-                  ✕
-                </button>
-              </div>
+              <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4">Restock: {selectedProduct.name}</h3>
+              <p className="text-gray-600 dark:text-gray-300 mb-4">Current stock: <span className="font-semibold">{selectedProduct.stock}</span></p>
               
-              <div className="mb-6">
-                <p className="text-gray-600 dark:text-gray-300 mb-1">Product: <span className="font-semibold text-gray-800 dark:text-white">{selectedProduct.name}</span></p>
-                <p className="text-gray-600 dark:text-gray-300 mb-3">Current Stock: <span className="font-semibold text-gray-800 dark:text-white">{selectedProduct.stock}</span></p>
-                
-                <label className="block text-gray-700 dark:text-gray-300 mb-1">Add Stock</label>
+              <div className="mb-4">
+                <label htmlFor="restockAmount" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Add Stock
+                </label>
                 <input
                   type="number"
+                  id="restockAmount"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-green-500 focus:border-green-500 dark:bg-gray-700"
                   value={restockAmount}
                   onChange={(e) => setRestockAmount(e.target.value)}
-                  className="form-input w-full rounded-lg"
                   min="1"
                   placeholder="Enter amount to add"
                 />
               </div>
               
-              <div className="flex gap-3">
+              <div className="flex justify-end gap-3 mt-6">
                 <button
+                  className="px-4 py-2 bg-gray-200 text-gray-800 dark:bg-gray-700 dark:text-gray-200 rounded-md hover:bg-gray-300 dark:hover:bg-gray-600"
                   onClick={() => setIsRestockModalOpen(false)}
-                  className="flex-1 py-2 px-4 bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 rounded-lg transition-colors text-gray-800 dark:text-gray-200"
                 >
                   Cancel
                 </button>
                 <button
+                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-blue-300 disabled:cursor-not-allowed"
                   onClick={handleRestock}
                   disabled={!restockAmount || parseInt(restockAmount) <= 0}
-                  className={`flex-1 py-2 px-4 rounded-lg transition-colors ${
-                    !restockAmount || parseInt(restockAmount) <= 0
-                      ? "bg-green-300 cursor-not-allowed text-white"
-                      : "bg-green-600 hover:bg-green-700 text-white"
-                  }`}
                 >
-                  Restock Now
+                  Restock
                 </button>
               </div>
             </div>
@@ -468,40 +517,61 @@ export default function VendorInventoryProductsPage() {
         </div>
       )}
 
-      {/* Edit Product Modal */}
-      {isEditModalOpen && selectedProduct && editedProduct && (
+      {/* Edit Modal */}
+      {isEditModalOpen && editedProduct && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 animate-fadeIn">
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg w-full max-w-2xl mx-4 animate-slideUp border border-gray-200 dark:border-gray-700">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg w-full max-w-xl mx-4 animate-slideUp">
             <div className="p-6">
-              <div className="flex justify-between items-center mb-6">
-                <h2 className="text-xl font-bold text-gray-800 dark:text-white flex items-center">
-                 <Edit className="mr-2 h-5 w-5 text-blue-500"/> Edit Product Details
-                </h2>
-                <button onClick={() => setIsEditModalOpen(false)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors">
-                  ✕
-                </button>
-              </div>
+              <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-6">Edit Product</h3>
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                <div className="md:col-span-2 flex items-center gap-4 mb-2">
+                  <div className="relative w-16 h-16 rounded-md overflow-hidden">
+                    <Image 
+                      src={editedProduct.imageUrl || "/placeholder.svg"} 
+                      alt="Product image"
+                      fill
+                      className="object-cover"
+                    />
+                  </div>
+                  <div className="flex-grow">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      Image URL
+                    </label>
+                    <input
+                      type="text"
+                      name="imageUrl"
+                      value={editedProduct.imageUrl}
+                      onChange={(e) => setEditedProduct({...editedProduct, imageUrl: e.target.value})}
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md"
+                    />
+                  </div>
+                </div>
+                
                 <div>
-                  <label className="block text-gray-700 dark:text-gray-300 mb-1">Product Name</label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Product Name
+                  </label>
                   <input
                     type="text"
+                    name="name"
                     value={editedProduct.name}
                     onChange={(e) => setEditedProduct({...editedProduct, name: e.target.value})}
-                    className="form-input w-full rounded-lg"
-                    placeholder="Product Name"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md"
                   />
                 </div>
                 
                 <div>
-                  <label className="block text-gray-700 dark:text-gray-300 mb-1">Category</label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Category
+                  </label>
                   <select
+                    name="category"
                     value={editedProduct.category}
                     onChange={(e) => setEditedProduct({...editedProduct, category: e.target.value})}
-                    className="form-input w-full rounded-lg"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md"
                   >
-                    {categories.filter(cat => cat !== 'All').map((category) => (
+                    {categories.filter(cat => cat !== "All").map((category) => (
                       <option key={category} value={category}>
                         {category}
                       </option>
@@ -510,24 +580,29 @@ export default function VendorInventoryProductsPage() {
                 </div>
                 
                 <div>
-                  <label className="block text-gray-700 dark:text-gray-300 mb-1">Price</label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Price
+                  </label>
                   <input
                     type="number"
+                    name="price"
                     value={editedProduct.price}
-                    onChange={(e) => setEditedProduct({...editedProduct, price: parseFloat(e.target.value)})}
-                    className="form-input w-full rounded-lg"
+                    onChange={(e) => setEditedProduct({...editedProduct, price: parseFloat(e.target.value) || 0})}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md"
                     min="0"
                     step="0.01"
-                    placeholder="Price"
                   />
                 </div>
                 
                 <div>
-                  <label className="block text-gray-700 dark:text-gray-300 mb-1">Unit</label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Unit
+                  </label>
                   <select
+                    name="unit"
                     value={editedProduct.unit}
                     onChange={(e) => setEditedProduct({...editedProduct, unit: e.target.value})}
-                    className="form-input w-full rounded-lg"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md"
                   >
                     {units.map((unit) => (
                       <option key={unit} value={unit}>
@@ -538,54 +613,43 @@ export default function VendorInventoryProductsPage() {
                 </div>
                 
                 <div>
-                  <label className="block text-gray-700 dark:text-gray-300 mb-1">Current Stock</label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Stock
+                  </label>
                   <input
                     type="number"
+                    name="stock"
                     value={editedProduct.stock}
-                    onChange={(e) => setEditedProduct({...editedProduct, stock: parseInt(e.target.value)})}
-                    className="form-input w-full rounded-lg"
+                    onChange={(e) => setEditedProduct({...editedProduct, stock: parseInt(e.target.value) || 0})}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md"
                     min="0"
-                    placeholder="Stock Level"
-                  />
-                </div>
-                
-                <div>
-                  <label className="block text-gray-700 dark:text-gray-300 mb-1">Image URL</label>
-                  <input
-                    type="text"
-                    value={editedProduct.imageUrl}
-                    onChange={(e) => setEditedProduct({...editedProduct, imageUrl: e.target.value})}
-                    className="form-input w-full rounded-lg"
-                    placeholder="Image URL"
                   />
                 </div>
                 
                 <div className="md:col-span-2">
-                  <label className="block text-gray-700 dark:text-gray-300 mb-1">Description</label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Description
+                  </label>
                   <textarea
+                    name="description"
                     value={editedProduct.description}
                     onChange={(e) => setEditedProduct({...editedProduct, description: e.target.value})}
-                    className="form-input w-full rounded-lg min-h-[100px]"
-                    placeholder="Product Description"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md"
+                    rows={3}
                   />
                 </div>
               </div>
               
-              <div className="flex gap-3">
+              <div className="flex justify-end gap-3 mt-6">
                 <button
+                  className="px-4 py-2 bg-gray-200 text-gray-800 dark:bg-gray-700 dark:text-gray-200 rounded-md hover:bg-gray-300 dark:hover:bg-gray-600"
                   onClick={() => setIsEditModalOpen(false)}
-                  className="flex-1 py-2 px-4 bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 rounded-lg transition-colors text-gray-800 dark:text-gray-200"
                 >
                   Cancel
                 </button>
                 <button
+                  className="px-4 py-2 bg-yellow-600 text-white rounded-md hover:bg-yellow-700"
                   onClick={handleSaveEdit}
-                  disabled={!editedProduct.name || editedProduct.price <= 0}
-                  className={`flex-1 py-2 px-4 rounded-lg transition-colors ${
-                    !editedProduct.name || editedProduct.price <= 0
-                      ? "bg-blue-300 cursor-not-allowed text-white"
-                      : "bg-blue-600 hover:bg-blue-700 text-white"
-                  }`}
                 >
                   Save Changes
                 </button>
@@ -594,6 +658,15 @@ export default function VendorInventoryProductsPage() {
           </div>
         </div>
       )}
+      
+      {/* Add Product Modal */}
+      <AddProductModal 
+        isOpen={isAddModalOpen}
+        onClose={() => setIsAddModalOpen(false)}
+        onSubmit={handleSubmitNewProduct}
+        categories={categories}
+        units={units}
+      />
     </div>
   );
 }

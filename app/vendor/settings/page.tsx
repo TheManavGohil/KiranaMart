@@ -13,7 +13,7 @@ import { Loader2 } from "lucide-react" // For loading indicator
 
 // Import Leaflet CSS (ensure this path is correct for your setup)
 import 'leaflet/dist/leaflet.css'
-import L from 'leaflet' // Import Leaflet library itself for icon handling
+// Remove direct Leaflet import from here - we'll import it inside useEffect
 
 // Mock initial store data
 const initialStoreData = {
@@ -86,13 +86,7 @@ function debounce<F extends (...args: any[]) => any>(func: F, waitFor: number) {
   return debounced as (...args: Parameters<F>) => void;
 }
 
-// Fix for default Leaflet icon issues with build tools
-delete (L.Icon.Default.prototype as any)._getIconUrl;
-L.Icon.Default.mergeOptions({
-  iconRetinaUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon-2x.png',
-  iconUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon.png',
-  shadowUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-shadow.png',
-});
+// Remove Leaflet icon fix from the module scope
 
 export default function StoreSettingsPage() {
   const [storeData, setStoreData] = useState(initialStoreData)
@@ -103,6 +97,20 @@ export default function StoreSettingsPage() {
   const [geocodeError, setGeocodeError] = useState<string | null>(null)
 
   const timeOptions = generateTimeOptions()
+
+  // Fix Leaflet icon issue on component mount (client-side only)
+  useEffect(() => {
+    // Import Leaflet inside useEffect to ensure it only runs client-side
+    import('leaflet').then((L) => {
+      // Fix for default Leaflet icon issues with build tools
+      delete (L.Icon.Default.prototype as any)._getIconUrl;
+      L.Icon.Default.mergeOptions({
+        iconRetinaUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon-2x.png',
+        iconUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon.png',
+        shadowUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-shadow.png',
+      });
+    });
+  }, []);
 
   // --- Geocoding Logic --- 
   const fetchCoordinates = async (address: string) => {
