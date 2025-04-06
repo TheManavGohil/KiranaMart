@@ -9,23 +9,25 @@ import { Textarea } from "@/components/ui/textarea"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
-import { Loader2 } from "lucide-react" // For loading indicator
+import { Loader2, Check, AlertCircle } from "lucide-react" // For icons
+import { apiCall } from '@/lib/api' // Import API utility
+import { toast } from "sonner" // For notifications
 
 // Import Leaflet CSS (ensure this path is correct for your setup)
 import 'leaflet/dist/leaflet.css'
 // Remove direct Leaflet import from here - we'll import it inside useEffect
 
-// Mock initial store data
+// Default initial store data (will be replaced with API data)
 const initialStoreData = {
-  storeName: "Fresh Mart Groceries",
-  storeId: "STORE-001",
-  storeDescription: "Fresh Mart Groceries offers a wide range of fresh produce, groceries, and household essentials with quick delivery.",
-  phoneNumber: "+91 98765 43210",
-  email: "contact@freshmart.com",
-  address: "123 Main Street, Koramangala, Bangalore - 560034",
+  storeName: "",
+  storeId: "",
+  storeDescription: "",
+  phoneNumber: "",
+  email: "",
+  address: "",
 }
 
-// Mock initial business hours
+// Default initial business hours (will be replaced with API data)
 const initialBusinessHours = [
   { day: "Monday", open: "08:00", close: "22:00", enabled: true },
   { day: "Tuesday", open: "08:00", close: "22:00", enabled: true },
@@ -36,7 +38,7 @@ const initialBusinessHours = [
   { day: "Sunday", open: "10:00", close: "18:00", enabled: false },
 ]
 
-// Mock initial delivery settings
+// Default initial delivery settings (will be replaced with API data)
 const initialDeliverySettings = {
   deliveryRadius: 5,
   freeDelivery: true,
@@ -88,6 +90,29 @@ function debounce<F extends (...args: any[]) => any>(func: F, waitFor: number) {
 
 // Remove Leaflet icon fix from the module scope
 
+interface StoreSettings {
+  storeName: string;
+  storeId: string;
+  storeDescription: string;
+  phoneNumber: string;
+  email: string;
+  address: string;
+  businessHours: Array<{
+    day: string;
+    open: string;
+    close: string;
+    enabled: boolean;
+  }>;
+  deliverySettings: {
+    deliveryRadius: number;
+    freeDelivery: boolean;
+    freeDeliveryThreshold: number;
+    expressDelivery: boolean;
+    expressDeliveryTime: number;
+  };
+  location?: [number, number] | null;
+}
+
 export default function StoreSettingsPage() {
   const [storeData, setStoreData] = useState(initialStoreData)
   const [businessHours, setBusinessHours] = useState(initialBusinessHours)
@@ -95,6 +120,12 @@ export default function StoreSettingsPage() {
   const [mapCoordinates, setMapCoordinates] = useState<[number, number] | null>(null) // [latitude, longitude]
   const [isGeocoding, setIsGeocoding] = useState(false)
   const [geocodeError, setGeocodeError] = useState<string | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
+  const [isSaving, setIsSaving] = useState({
+    storeInfo: false,
+    businessHours: false,
+    deliverySettings: false
+  })
 
   const timeOptions = generateTimeOptions()
 
@@ -110,6 +141,44 @@ export default function StoreSettingsPage() {
         shadowUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-shadow.png',
       });
     });
+  }, []);
+
+  // Fetch vendor settings from API
+  const fetchVendorSettings = async () => {
+    try {
+      setIsLoading(true);
+      const data = await apiCall<StoreSettings>('/api/vendor/settings');
+      
+      // Update state with fetched data
+      setStoreData({
+        storeName: data.storeName,
+        storeId: data.storeId,
+        storeDescription: data.storeDescription,
+        phoneNumber: data.phoneNumber,
+        email: data.email,
+        address: data.address,
+      });
+      
+      setBusinessHours(data.businessHours);
+      setDeliverySettings(data.deliverySettings);
+      
+      // Set map coordinates if available
+      if (data.location) {
+        setMapCoordinates(data.location);
+      }
+      
+      toast.success("Store settings loaded successfully");
+    } catch (error: any) {
+      console.error("Error fetching vendor settings:", error);
+      toast.error(`Error loading settings: ${error.message}`);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Load settings on component mount
+  useEffect(() => {
+    fetchVendorSettings();
   }, []);
 
   // --- Geocoding Logic --- 
@@ -152,7 +221,7 @@ export default function StoreSettingsPage() {
     debouncedFetchCoordinates(storeData.address);
   }, [storeData.address, debouncedFetchCoordinates]);
 
-  // --- Handler functions (remain largely unchanged) ---
+  // --- Handler functions --- 
   const handleStoreDataChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target
     setStoreData(prev => ({ ...prev, [name]: value }))
@@ -170,19 +239,80 @@ export default function StoreSettingsPage() {
     setDeliverySettings(prev => ({ ...prev, [field]: updatedValue }))
   }
 
-  const handleSaveChanges = () => {
-    console.log("Saving store information:", storeData, "Coordinates:", mapCoordinates)
-    // Add API call logic here, potentially saving mapCoordinates
+  const handleSaveChanges = async () => {
+    try {
+      setIsSaving({...isSaving, storeInfo: true});
+      
+      // Prepare data to send to API
+      const dataToUpdate = {
+        ...storeData,
+        location: mapCoordinates // Save the coordinates along with the address
+      };
+      
+      // Call API to update settings
+      await apiCall('/api/vendor/settings', {
+        method: 'PUT',
+        body: JSON.stringify(dataToUpdate)
+      });
+      
+      toast.success("Store information updated successfully");
+    } catch (error: any) {
+      console.error("Error saving store information:", error);
+      toast.error(`Error: ${error.message}`);
+    } finally {
+      setIsSaving({...isSaving, storeInfo: false});
+    }
   }
 
-  const handleSaveBusinessHours = () => {
-    console.log("Saving business hours:", businessHours)
-    // Add API call logic here
+  const handleSaveBusinessHours = async () => {
+    try {
+      setIsSaving({...isSaving, businessHours: true});
+      
+      // Call API to update business hours
+      await apiCall('/api/vendor/settings', {
+        method: 'PUT',
+        body: JSON.stringify({ businessHours })
+      });
+      
+      toast.success("Business hours updated successfully");
+    } catch (error: any) {
+      console.error("Error saving business hours:", error);
+      toast.error(`Error: ${error.message}`);
+    } finally {
+      setIsSaving({...isSaving, businessHours: false});
+    }
   }
 
-  const handleSaveDeliverySettings = () => {
-    console.log("Saving delivery settings:", deliverySettings)
-    // Add API call logic here
+  const handleSaveDeliverySettings = async () => {
+    try {
+      setIsSaving({...isSaving, deliverySettings: true});
+      
+      // Call API to update delivery settings
+      await apiCall('/api/vendor/settings', {
+        method: 'PUT',
+        body: JSON.stringify({ deliverySettings })
+      });
+      
+      toast.success("Delivery settings updated successfully");
+    } catch (error: any) {
+      console.error("Error saving delivery settings:", error);
+      toast.error(`Error: ${error.message}`);
+    } finally {
+      setIsSaving({...isSaving, deliverySettings: false});
+    }
+  }
+
+  // Loading state
+  if (isLoading) {
+    return (
+      <div className="min-h-[70vh] flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="h-10 w-10 animate-spin text-green-500 mx-auto mb-4" />
+          <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100">Loading store settings...</h3>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">Please wait while we fetch your store information.</p>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -293,10 +423,19 @@ export default function StoreSettingsPage() {
               <Button 
                 className="bg-gray-900 text-white hover:bg-gray-700 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-gray-200"
                 onClick={handleSaveChanges}
-                disabled={isGeocoding} // Disable save while geocoding
+                disabled={isSaving.storeInfo || isGeocoding}
               >
-                {isGeocoding ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                Save Changes
+                {isSaving.storeInfo ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  <>
+                    <Check className="mr-2 h-4 w-4" />
+                    Save Changes
+                  </>
+                )}
               </Button>
             </div>
           </CardContent>
@@ -367,8 +506,16 @@ export default function StoreSettingsPage() {
                 size="sm" 
                 className="bg-gray-900 text-white hover:bg-gray-700 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-gray-200"
                 onClick={handleSaveBusinessHours}
+                disabled={isSaving.businessHours}
               >
-                Save Hours
+                {isSaving.businessHours ? (
+                  <>
+                    <Loader2 className="mr-2 h-3 w-3 animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  "Save Hours"
+                )}
               </Button>
             </div>
           </CardContent>
@@ -425,8 +572,16 @@ export default function StoreSettingsPage() {
                 size="sm" 
                 className="bg-gray-900 text-white hover:bg-gray-700 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-gray-200"
                 onClick={handleSaveDeliverySettings}
+                disabled={isSaving.deliverySettings}
               >
-                Save Settings
+                {isSaving.deliverySettings ? (
+                  <>
+                    <Loader2 className="mr-2 h-3 w-3 animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  "Save Settings"
+                )}
               </Button>
             </div>
           </CardContent>
