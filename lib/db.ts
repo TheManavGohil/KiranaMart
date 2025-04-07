@@ -10,6 +10,7 @@ const COLLECTIONS = {
   USERS: "users",
   VENDORS: "vendors",
   DELIVERY_AGENTS: "deliveryAgents",
+  DELIVERIES: "deliveries",
 }
 
 // Helper to get database connection
@@ -26,6 +27,34 @@ interface DeliveryAgent {
   phone: string;
   vehicleType: 'Bike' | 'Car' | 'Scooter' | 'Other';
   isActive: boolean;
+  createdAt?: Date;
+  updatedAt?: Date;
+}
+
+// Interface for Delivery data (Add this)
+interface Delivery {
+  _id?: ObjectId;
+  deliveryId?: string; // Optional user-friendly ID
+  orderId: ObjectId;
+  vendorId: ObjectId;
+  customerId: ObjectId; // Assuming customer ID is stored
+  customerName: string; // Denormalized for easier display
+  customerAddress: { // Assuming structured address
+    street: string;
+    city: string;
+    postalCode: string;
+    // other fields
+  };
+  customerPhone?: string; // Optional phone
+  assignedAgentId?: ObjectId | null; // Link to DeliveryAgent
+  status: 'Pending Assignment' | 'Assigned' | 'Out for Delivery' | 'Delivered' | 'Attempted Delivery' | 'Cancelled' | 'Delayed'; // Added more specific statuses
+  estimatedDeliveryTime?: Date | null;
+  actualDeliveryTime?: Date | null;
+  lastLocationUpdate?: Date | null;
+  currentLocation?: { lat: number; lon: number } | null;
+  deliveryNotes?: string;
+  orderValue?: number;
+  packageSize?: 'Small' | 'Medium' | 'Large';
   createdAt?: Date;
   updatedAt?: Date;
 }
@@ -526,6 +555,91 @@ export async function deleteDeliveryAgent(agentId: string, vendorId: string) {
      vendorId: vendorObjectId // Ensure agent belongs to the vendor
   });
   // TODO: Consider what happens to deliveries assigned to this agent. Reassign? Mark as unassigned?
+  return result;
+}
+
+// Fetch deliveries, potentially joining agent info
+export async function getDeliveriesByVendor(vendorId: string) {
+  const db = await getDatabase();
+  const vendorObjectId = new ObjectId(vendorId);
+
+  // Use aggregation pipeline to potentially lookup agent details
+  const pipeline = [
+    { $match: { vendorId: vendorObjectId } },
+    { $sort: { createdAt: -1 } }, // Sort by creation date, newest first
+    // Optional: Lookup agent details if assignedAgentId exists
+    {
+      $lookup: {
+        from: COLLECTIONS.DELIVERY_AGENTS,
+        localField: "assignedAgentId",
+        foreignField: "_id",
+        as: "agentDetails"
+      }
+    },
+    // Deconstruct the agentDetails array (it will have 0 or 1 element)
+    {
+      $unwind: {
+        path: "$agentDetails",
+        preserveNullAndEmptyArrays: true // Keep deliveries even if agent isn't found/assigned
+      }
+    }
+    // Add more stages if needed (e.g., projecting fields)
+  ];
+
+  return db.collection<Delivery>(COLLECTIONS.DELIVERIES).aggregate(pipeline).toArray();
+}
+
+// Update status of a specific delivery, ensuring vendor ownership
+export async function updateDeliveryStatus(
+  deliveryId: string, // MongoDB _id
+  newStatus: Delivery['status'],
+  vendorId: string
+) {
+  const db = await getDatabase();
+  const deliveryObjectId = new ObjectId(deliveryId);
+  const vendorObjectId = new ObjectId(vendorId);
+
+  const updateData: Partial<Delivery> = {
+    status: newStatus,
+    updatedAt: new Date()
+  };
+
+  // Set actual delivery time if status is 'Delivered'
+  if (newStatus === 'Delivered') {
+    updateData.actualDeliveryTime = new Date();
+  }
+
+  const result = await db.collection<Delivery>(COLLECTIONS.DELIVERIES).updateOne(
+    { _id: deliveryObjectId, vendorId: vendorObjectId },
+    { $set: updateData }
+  );
+  return result;
+}
+
+// Assign an agent to a specific delivery, ensuring vendor ownership
+export async function assignAgentToDelivery(
+  deliveryId: string, // MongoDB _id
+  agentId: string | null, // Agent's MongoDB _id, or null to unassign
+  vendorId: string
+) {
+  const db = await getDatabase();
+  const deliveryObjectId = new ObjectId(deliveryId);
+  const vendorObjectId = new ObjectId(vendorId);
+  const agentObjectId = agentId ? new ObjectId(agentId) : null;
+
+  // Optional: Verify the agent actually belongs to the vendor before assigning
+  // (Could be done here or rely on UI only showing valid agents)
+
+  const result = await db.collection<Delivery>(COLLECTIONS.DELIVERIES).updateOne(
+    { _id: deliveryObjectId, vendorId: vendorObjectId },
+    {
+      $set: {
+        assignedAgentId: agentObjectId,
+        status: agentObjectId ? 'Assigned' : 'Pending Assignment', // Update status based on assignment
+        updatedAt: new Date()
+      }
+    }
+  );
   return result;
 }
 
