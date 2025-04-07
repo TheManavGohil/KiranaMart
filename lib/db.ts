@@ -9,12 +9,25 @@ const COLLECTIONS = {
   ORDERS: "orders",
   USERS: "users",
   VENDORS: "vendors",
+  DELIVERY_AGENTS: "deliveryAgents",
 }
 
 // Helper to get database connection
 export async function getDatabase() {
   const client = await clientPromise
   return client.db(DB_NAME)
+}
+
+// Interface for Delivery Agent data (Define locally for now)
+interface DeliveryAgent {
+  _id?: ObjectId; // MongoDB ObjectId
+  vendorId: ObjectId;
+  name: string;
+  phone: string;
+  vehicleType: 'Bike' | 'Car' | 'Scooter' | 'Other';
+  isActive: boolean;
+  createdAt?: Date;
+  updatedAt?: Date;
 }
 
 // Products
@@ -37,8 +50,9 @@ export async function getProductsByVendor(vendorId: string) {
 
 export async function createProduct(product: Product) {
   const db = await getDatabase()
+  const { _id, ...productData } = product
   const result = await db.collection(COLLECTIONS.PRODUCTS).insertOne({
-    ...product,
+    ...productData,
     createdAt: new Date(),
   })
 
@@ -81,8 +95,9 @@ export async function getOrdersByVendor(vendorId: string) {
 export async function createOrder(order: Order) {
   const db = await getDatabase()
   const now = new Date()
+  const { _id, ...orderData } = order
   const result = await db.collection(COLLECTIONS.ORDERS).insertOne({
-    ...order,
+    ...orderData,
     status: "Pending",
     createdAt: now,
     updatedAt: now,
@@ -91,10 +106,19 @@ export async function createOrder(order: Order) {
   return result
 }
 
-export async function updateOrderStatus(id: string, status: Order["status"]) {
+export async function updateOrderStatus(
+  id: string,
+  status: Order["status"],
+  vendorId: string
+) {
   const db = await getDatabase()
+  const vendorObjectId = new ObjectId(vendorId)
+
   const result = await db.collection(COLLECTIONS.ORDERS).updateOne(
-    { _id: new ObjectId(id) },
+    {
+      _id: new ObjectId(id),
+      vendorId: vendorObjectId
+    },
     {
       $set: {
         status,
@@ -119,8 +143,9 @@ export async function getUserByEmail(email: string) {
 
 export async function createUser(user: User) {
   const db = await getDatabase()
+  const { _id, ...userData } = user
   const result = await db.collection(COLLECTIONS.USERS).insertOne({
-    ...user,
+    ...userData,
     addresses: [],
     orderHistory: [],
     createdAt: new Date(),
@@ -149,8 +174,9 @@ export async function getVendorByEmail(email: string) {
 
 export async function createVendor(vendor: Vendor) {
   const db = await getDatabase()
+  const { _id, ...vendorData } = vendor
   const result = await db.collection(COLLECTIONS.VENDORS).insertOne({
-    ...vendor,
+    ...vendorData,
     products: [],
     createdAt: new Date(),
   })
@@ -168,10 +194,9 @@ export async function updateVendor(id: string, updates: Partial<Vendor>) {
 // Cart operations (using user's collection)
 export async function addToCart(userId: string, product: { productId: string; quantity: number }) {
   const db = await getDatabase()
-  // Assuming cart is stored as a subdocument in the user document
   const result = await db
     .collection(COLLECTIONS.USERS)
-    .updateOne({ _id: new ObjectId(userId) }, { $push: { cart: product } })
+    .updateOne({ _id: new ObjectId(userId) }, { $push: { cart: product as any } })
 
   return result
 }
@@ -200,7 +225,7 @@ export async function removeFromCart(userId: string, productId: string) {
   const db = await getDatabase()
   const result = await db
     .collection(COLLECTIONS.USERS)
-    .updateOne({ _id: new ObjectId(userId) }, { $pull: { cart: { productId } } })
+    .updateOne({ _id: new ObjectId(userId) }, { $pull: { cart: { productId } as any } })
 
   return result
 }
@@ -425,5 +450,82 @@ export async function seedDummyData() {
   ]
 
   await db.collection(COLLECTIONS.USERS).insertMany(users)
+}
+
+// Delivery Agent Functions
+export async function createDeliveryAgent(agentData: Omit<DeliveryAgent, '_id' | 'createdAt' | 'updatedAt' | 'vendorId'> & { vendorId: string }) {
+  const db = await getDatabase();
+  const now = new Date();
+  // Ensure vendorId is ObjectId
+  const vendorObjectId = new ObjectId(agentData.vendorId);
+  // Prepare data for insertion, excluding the string vendorId
+  const { vendorId: stringVendorId, ...restOfAgentData } = agentData;
+  const result = await db.collection<Omit<DeliveryAgent, '_id'>>(COLLECTIONS.DELIVERY_AGENTS).insertOne({
+    ...restOfAgentData,
+    vendorId: vendorObjectId, // Store as ObjectId
+    isActive: agentData.isActive !== undefined ? agentData.isActive : true, // Default to active
+    createdAt: now,
+    updatedAt: now,
+  });
+  // The incorrect lines referencing vendorDataForInsert are removed here.
+  return result;
+}
+
+export async function getDeliveryAgentsByVendor(vendorId: string) {
+  const db = await getDatabase();
+  const vendorObjectId = new ObjectId(vendorId);
+  // Use the locally defined interface for type safety
+  return db.collection<DeliveryAgent>(COLLECTIONS.DELIVERY_AGENTS)
+           .find({ vendorId: vendorObjectId })
+           .sort({ name: 1 }) // Sort by name
+           .toArray();
+}
+
+export async function getDeliveryAgentById(agentId: string, vendorId: string) {
+  const db = await getDatabase();
+  const agentObjectId = new ObjectId(agentId);
+  const vendorObjectId = new ObjectId(vendorId);
+  return db.collection<DeliveryAgent>(COLLECTIONS.DELIVERY_AGENTS).findOne({
+    _id: agentObjectId,
+    vendorId: vendorObjectId // Ensure agent belongs to the vendor
+  });
+}
+
+export async function updateDeliveryAgent(
+  agentId: string,
+  vendorId: string,
+  // Use the locally defined interface for updates
+  updates: Partial<Omit<DeliveryAgent, '_id' | 'vendorId' | 'createdAt'>>
+) {
+  const db = await getDatabase();
+  const agentObjectId = new ObjectId(agentId);
+  const vendorObjectId = new ObjectId(vendorId);
+
+  // Ensure createdAt/vendorId are not in updates
+  const { createdAt, ...validUpdates } = updates as any; // vendorId is already excluded by Omit
+
+  if (Object.keys(validUpdates).length === 0) {
+    // Avoid empty update operations
+    // Return something compatible with UpdateResult type if needed, or adjust based on usage
+    return { matchedCount: 1, modifiedCount: 0, acknowledged: true, upsertedCount: 0, upsertedId: null };
+  }
+
+  const result = await db.collection<DeliveryAgent>(COLLECTIONS.DELIVERY_AGENTS).updateOne(
+    { _id: agentObjectId, vendorId: vendorObjectId }, // Match agent AND vendor
+    { $set: { ...validUpdates, updatedAt: new Date() } }
+  );
+  return result;
+}
+
+export async function deleteDeliveryAgent(agentId: string, vendorId: string) {
+  const db = await getDatabase();
+  const agentObjectId = new ObjectId(agentId);
+  const vendorObjectId = new ObjectId(vendorId);
+  const result = await db.collection<DeliveryAgent>(COLLECTIONS.DELIVERY_AGENTS).deleteOne({
+     _id: agentObjectId,
+     vendorId: vendorObjectId // Ensure agent belongs to the vendor
+  });
+  // TODO: Consider what happens to deliveries assigned to this agent. Reassign? Mark as unassigned?
+  return result;
 }
 

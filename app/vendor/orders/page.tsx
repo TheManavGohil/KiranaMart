@@ -1,28 +1,25 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Search, Filter, ArrowUpDown, Eye, CheckCircle, XCircle, Clock, Package, Truck, Calendar } from "lucide-react"
+import { Search, Filter, ArrowUpDown, Eye, CheckCircle, XCircle, Clock, Package, Truck, Calendar, ChevronDown, Loader2, AlertCircle } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu"
+import { apiCall } from '@/lib/api'
+import { toast } from "sonner"
 
-// Mock order data
-const mockOrders = Array(15)
-  .fill(null)
-  .map((_, i) => ({
-    id: `ord-${1000 + i}`,
-    customer: `Customer ${i + 1}`,
-    date: new Date(Date.now() - i * 86400000).toISOString().split("T")[0],
-    items: Math.floor(Math.random() * 5) + 1,
-    total: (Math.random() * 100 + 20).toFixed(2),
-    status:
-      i % 5 === 0
-        ? "Pending"
-        : i % 5 === 1
-          ? "Preparing"
-          : i % 5 === 2
-            ? "Out for Delivery"
-            : i % 5 === 3
-              ? "Delivered"
-              : "Cancelled",
-  }))
+// Define the structure for the fetched order data
+interface Order {
+  _id: string; // MongoDB ObjectId
+  id: string; // Custom Order ID (e.g., ord-1001)
+  customer: string;
+  date: string;
+  items: number; // Total number of items
+  total: string; // Formatted total amount
+  status: string;
+}
 
 // Define order status flow and available transitions
 const statusTransitions = {
@@ -34,15 +31,40 @@ const statusTransitions = {
 }
 
 export default function VendorOrdersPage() {
-  const [orders, setOrders] = useState(mockOrders)
+  const [orders, setOrders] = useState<Order[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState("All")
   const [startDate, setStartDate] = useState("")
   const [endDate, setEndDate] = useState("")
   const [isDateFilterActive, setIsDateFilterActive] = useState(false)
   const [showDatePicker, setShowDatePicker] = useState(false)
+  const [isUpdatingStatus, setIsUpdatingStatus] = useState<string | null>(null)
 
   const statuses = ["All", "Pending", "Preparing", "Out for Delivery", "Delivered", "Cancelled"]
+
+  // Fetch orders function
+  const fetchOrders = async () => {
+    try {
+      setIsLoading(true)
+      setError(null)
+      const fetchedOrders = await apiCall<Order[]>('/api/vendor/orders')
+      setOrders(fetchedOrders || [])
+    } catch (err: any) {
+      console.error("Error fetching orders:", err)
+      setError(err.message || "Failed to load orders")
+      toast.error(`Error: ${err.message || "Failed to load orders"}`)
+      setOrders([]) // Clear orders on error
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  // Fetch orders on component mount
+  useEffect(() => {
+    fetchOrders()
+  }, [])
 
   useEffect(() => {
     // Set default end date to today if not set
@@ -93,13 +115,32 @@ export default function VendorOrdersPage() {
     }
   }
 
-  const handleUpdateStatus = (id: string, newStatus: string) => {
-    setOrders((prev) => 
-      prev.map((order) => 
-        order.id === id ? { ...order, status: newStatus } : order
-      )
-    )
-  }
+  // Update status handler using API call with MongoDB _id
+  const handleUpdateStatus = async (orderMongoId: string, newStatus: string) => {
+    setIsUpdatingStatus(orderMongoId); // Use MongoDB _id for tracking
+    try {
+      // Use mongoId query parameter and pass the MongoDB _id
+      await apiCall(`/api/vendor/orders?mongoId=${orderMongoId}`, {
+        method: 'PUT',
+        body: JSON.stringify({ newStatus }),
+      });
+
+      // Update local state on success using MongoDB _id
+      setOrders((prev) =>
+        prev.map((order) =>
+          order._id === orderMongoId ? { ...order, status: newStatus } : order
+        )
+      );
+      // Find the order's custom ID for the toast message
+      const updatedOrder = orders.find(o => o._id === orderMongoId);
+      toast.success(`Order ${updatedOrder?.id || orderMongoId} status updated to ${newStatus}`);
+    } catch (err: any) {
+      console.error('Failed to update order status:', err);
+      toast.error(err.message || 'Failed to update status');
+    } finally {
+      setIsUpdatingStatus(null); // Clear loading state
+    }
+  };
 
   const getAvailableStatusTransitions = (currentStatus: string) => {
     return statusTransitions[currentStatus as keyof typeof statusTransitions] || []
@@ -117,24 +158,56 @@ export default function VendorOrdersPage() {
     setShowDatePicker(false)
   }
 
+  // Loading State UI
+  if (isLoading) {
+    return (
+      <div className="min-h-[70vh] flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="h-10 w-10 animate-spin text-green-500 mx-auto mb-4" />
+          <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100">Loading Orders...</h3>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">Please wait while we fetch your order history.</p>
+        </div>
+      </div>
+    )
+  }
+
+  // Error State UI
+  if (error) {
+    return (
+      <div className="min-h-[70vh] flex items-center justify-center">
+        <div className="text-center max-w-md p-6 bg-red-50 dark:bg-red-900/20 rounded-lg shadow">
+          <AlertCircle className="h-10 w-10 text-red-500 mx-auto mb-4" />
+          <h3 className="text-lg font-medium text-red-800 dark:text-red-300">Error Loading Orders</h3>
+          <p className="text-sm text-red-600 dark:text-red-400 mt-2 mb-4">{error}</p>
+          <Button
+            onClick={fetchOrders}
+            className="bg-red-600 text-white hover:bg-red-700 dark:bg-red-700 dark:hover:bg-red-600"
+          >
+            Try Again
+          </Button>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="animate-fadeIn">
       <div className="flex justify-between items-center mb-8">
-        <h1 className="text-3xl font-bold text-gray-800">
+        <h1 className="text-3xl font-bold text-gray-800 dark:text-white">
           <span className="border-b-4 border-green-500 pb-1">Order Management</span>
         </h1>
       </div>
 
       {/* Filters & Search */}
-      <div className="bg-white p-5 rounded-lg shadow-md mb-6 border border-gray-100">
+      <div className="bg-white dark:bg-gray-800 p-5 rounded-lg shadow-md mb-6 border border-gray-100 dark:border-gray-700">
         <div className="flex flex-col md:flex-row gap-4">
           <div className="flex-grow">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-              <input
+              <Input
                 type="text"
                 placeholder="Search by order # or customer name..."
-                className="form-input pl-10 w-full rounded-lg border-gray-300 focus:border-green-500 focus:ring focus:ring-green-200 focus:ring-opacity-50 transition-all"
+                className="form-input pl-10 w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 focus:border-green-500 focus:ring focus:ring-green-200 focus:ring-opacity-50 transition-all"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
@@ -143,51 +216,53 @@ export default function VendorOrdersPage() {
 
           <div className="flex flex-wrap md:flex-nowrap gap-4">
             <div>
-              <select
-                className="form-input py-2 rounded-lg border-gray-300 focus:border-green-500 focus:ring focus:ring-green-200 focus:ring-opacity-50 transition-all"
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-              >
-                {statuses.map((status) => (
-                  <option key={status} value={status}>
-                    {status}
-                  </option>
-                ))}
-              </select>
+              <Select onValueChange={setStatusFilter} value={statusFilter}>
+                <SelectTrigger className="w-full md:w-[180px] dark:bg-gray-700 dark:border-gray-600 dark:text-gray-200">
+                  <SelectValue placeholder="Filter by status" />
+                </SelectTrigger>
+                <SelectContent className="dark:bg-gray-800 dark:border-gray-700">
+                  {statuses.map((status) => (
+                    <SelectItem key={status} value={status} className="dark:focus:bg-gray-700 dark:text-gray-200">
+                      {status}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             <div className="relative">
-              <button 
-                className={`btn-secondary flex items-center px-4 py-2 rounded-lg transition-all ${
-                  isDateFilterActive 
-                    ? "bg-green-100 text-green-700 border border-green-300 hover:bg-green-200" 
-                    : "bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-300"
+              <Button
+                variant="outline"
+                className={`w-full md:w-auto flex items-center justify-center transition-all dark:bg-gray-700 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-600 ${
+                  isDateFilterActive
+                    ? "bg-green-100 text-green-700 border-green-300 hover:bg-green-200 dark:bg-green-900/30 dark:text-green-300 dark:border-green-700 dark:hover:bg-green-800/40"
+                    : "bg-gray-100 hover:bg-gray-200 text-gray-700 border-gray-300"
                 }`}
                 onClick={() => setShowDatePicker(!showDatePicker)}
               >
                 <Calendar className="w-4 h-4 mr-2" />
-                {isDateFilterActive 
-                  ? `${startDate} - ${endDate}` 
+                {isDateFilterActive
+                  ? `${startDate} - ${endDate}`
                   : "Date Range"}
-              </button>
-              
+              </Button>
+
               {showDatePicker && (
-                <div className="absolute right-0 top-full mt-2 bg-white rounded-lg shadow-lg border border-gray-200 p-4 z-10 w-72">
+                <div className="absolute right-0 top-full mt-2 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 p-4 z-10 w-72">
                   <div className="mb-3">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Start Date</label>
-                    <input
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Start Date</label>
+                    <Input
                       type="date"
-                      className="form-input w-full rounded-lg border-gray-300 focus:border-green-500 focus:ring focus:ring-green-200 focus:ring-opacity-50"
+                      className="dark:bg-gray-700 dark:border-gray-600 dark:text-gray-200"
                       value={startDate}
                       onChange={(e) => setStartDate(e.target.value)}
                       max={endDate}
                     />
                   </div>
                   <div className="mb-4">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">End Date</label>
-                    <input
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">End Date</label>
+                    <Input
                       type="date"
-                      className="form-input w-full rounded-lg border-gray-300 focus:border-green-500 focus:ring focus:ring-green-200 focus:ring-opacity-50"
+                      className="dark:bg-gray-700 dark:border-gray-600 dark:text-gray-200"
                       value={endDate}
                       onChange={(e) => setEndDate(e.target.value)}
                       min={startDate}
@@ -195,19 +270,22 @@ export default function VendorOrdersPage() {
                     />
                   </div>
                   <div className="flex justify-between">
-                    <button
-                      className="px-3 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-md transition-colors"
+                    <Button
+                      variant="ghost"
+                      size="sm"
                       onClick={clearDateFilter}
+                      className="dark:text-gray-300 dark:hover:bg-gray-700"
                     >
                       Clear
-                    </button>
-                    <button
-                      className="px-3 py-1 bg-green-500 hover:bg-green-600 text-white rounded-md transition-colors"
+                    </Button>
+                    <Button
+                      size="sm"
                       onClick={applyDateFilter}
                       disabled={!startDate}
+                      className="bg-green-500 hover:bg-green-600 text-white"
                     >
                       Apply
-                    </button>
+                    </Button>
                   </div>
                 </div>
               )}
@@ -217,138 +295,112 @@ export default function VendorOrdersPage() {
       </div>
 
       {/* Orders Table */}
-      <div className="bg-white rounded-lg shadow-md overflow-hidden border border-gray-100">
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden border border-gray-100 dark:border-gray-700">
         <div className="overflow-x-auto">
           <table className="w-full">
-            <thead>
-              <tr className="bg-gray-50 border-b border-gray-200">
-                <th className="text-left py-3 px-4 font-medium text-gray-700">
-                  <button className="flex items-center hover:text-green-600 transition-colors">
+            <thead className="bg-gray-50 dark:bg-gray-700/50">
+              <tr className="border-b border-gray-200 dark:border-gray-700">
+                <th className="text-left py-3 px-4 font-medium text-gray-700 dark:text-gray-300">
+                  <button className="flex items-center hover:text-green-600 dark:hover:text-green-400 transition-colors">
                     Order ID
                     <ArrowUpDown className="ml-1 w-4 h-4" />
                   </button>
                 </th>
-                <th className="text-left py-3 px-4 font-medium text-gray-700">
-                  <button className="flex items-center hover:text-green-600 transition-colors">
+                <th className="text-left py-3 px-4 font-medium text-gray-700 dark:text-gray-300">
+                  <button className="flex items-center hover:text-green-600 dark:hover:text-green-400 transition-colors">
                     Customer
                     <ArrowUpDown className="ml-1 w-4 h-4" />
                   </button>
                 </th>
-                <th className="text-left py-3 px-4 font-medium text-gray-700">
-                  <button className="flex items-center hover:text-green-600 transition-colors">
+                <th className="text-left py-3 px-4 font-medium text-gray-700 dark:text-gray-300">
+                  <button className="flex items-center hover:text-green-600 dark:hover:text-green-400 transition-colors">
                     Date
                     <ArrowUpDown className="ml-1 w-4 h-4" />
                   </button>
                 </th>
-                <th className="text-left py-3 px-4 font-medium text-gray-700">Items</th>
-                <th className="text-left py-3 px-4 font-medium text-gray-700">
-                  <button className="flex items-center hover:text-green-600 transition-colors">
+                <th className="text-left py-3 px-4 font-medium text-gray-700 dark:text-gray-300">Items</th>
+                <th className="text-left py-3 px-4 font-medium text-gray-700 dark:text-gray-300">
+                  <button className="flex items-center hover:text-green-600 dark:hover:text-green-400 transition-colors">
                     Total
                     <ArrowUpDown className="ml-1 w-4 h-4" />
                   </button>
                 </th>
-                <th className="text-left py-3 px-4 font-medium text-gray-700">
-                  <button className="flex items-center hover:text-green-600 transition-colors">
-                    Status
-                    <ArrowUpDown className="ml-1 w-4 h-4" />
-                  </button>
-                </th>
-                <th className="text-center py-3 px-4 font-medium text-gray-700">Actions</th>
+                <th className="text-left py-3 px-4 font-medium text-gray-700 dark:text-gray-300">Status</th>
+                <th className="text-right py-3 px-4 font-medium text-gray-700 dark:text-gray-300">Actions</th>
               </tr>
             </thead>
             <tbody>
-              {filteredOrders.map((order) => (
-                <tr key={order.id} className="border-b border-gray-200 hover:bg-gray-50 transition-colors">
-                  <td className="py-3 px-4 font-medium text-gray-800">#{order.id}</td>
-                  <td className="py-3 px-4 text-gray-700">{order.customer}</td>
-                  <td className="py-3 px-4 text-gray-700">{order.date}</td>
-                  <td className="py-3 px-4 text-gray-700">{order.items}</td>
-                  <td className="py-3 px-4 font-medium text-gray-800">${order.total}</td>
-                  <td className="py-3 px-4">
-                    <div className="flex items-center gap-1">
-                      {getStatusIcon(order.status)}
-                      <span
-                        className={`px-2 py-1 rounded-full text-xs font-medium ${
-                          order.status === "Pending"
-                            ? "bg-yellow-100 text-yellow-800"
-                            : order.status === "Preparing"
-                              ? "bg-blue-100 text-blue-800"
-                              : order.status === "Out for Delivery"
-                                ? "bg-purple-100 text-purple-800"
-                                : order.status === "Delivered"
-                                  ? "bg-green-100 text-green-800"
-                                  : "bg-red-100 text-red-800"
-                        }`}
-                      >
-                        {order.status}
+              {filteredOrders.length > 0 ? (
+                filteredOrders.map((order) => (
+                  <tr key={order._id} className="border-b border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors">
+                    <td className="py-3 px-4 font-medium text-gray-800 dark:text-gray-200">{order.id}</td>
+                    <td className="py-3 px-4 text-gray-600 dark:text-gray-300">{order.customer}</td>
+                    <td className="py-3 px-4 text-gray-600 dark:text-gray-300">{order.date}</td>
+                    <td className="py-3 px-4 text-gray-600 dark:text-gray-300">{order.items}</td>
+                    <td className="py-3 px-4 font-medium text-gray-800 dark:text-gray-200">₹{order.total}</td>
+                    <td className="py-3 px-4">
+                      <span className="flex items-center gap-2 text-sm font-medium">
+                        {getStatusIcon(order.status)}
+                        <span className="text-gray-700 dark:text-gray-300">{order.status}</span>
                       </span>
-                    </div>
-                  </td>
-                  <td className="py-3 px-4">
-                    <div className="flex justify-center gap-2">
-                      <button
-                        className="p-2 text-blue-600 hover:bg-blue-50 rounded-full transition-colors"
-                        aria-label={`View details for order ${order.id}`}
-                      >
-                        <Eye className="w-5 h-5" />
-                      </button>
-
-                      {getAvailableStatusTransitions(order.status).length > 0 ? (
-                        <div className="relative inline-block text-left">
-                          <select
-                            className="form-select py-2 px-3 rounded-md border-gray-300 focus:border-green-500 focus:ring focus:ring-green-200 focus:ring-opacity-50 transition-all text-sm w-36"
-                            value=""
-                            onChange={(e) => {
-                              if (e.target.value) {
-                                handleUpdateStatus(order.id, e.target.value)
-                                e.target.value = ""
-                              }
-                            }}
-                            disabled={order.status === "Delivered" || order.status === "Cancelled"}
-                          >
-                            <option value="">Update Status</option>
-                            {getAvailableStatusTransitions(order.status).map((status) => (
-                              <option key={status} value={status}>
-                                Mark as {status}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-                      ) : (
-                        <button
-                          className="py-2 px-3 rounded-md bg-gray-100 text-gray-500 text-sm cursor-not-allowed w-36"
-                          disabled
-                        >
-                          Status Final
-                        </button>
-                      )}
-                    </div>
+                    </td>
+                    <td className="py-3 px-4 text-right">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="sm" className="dark:text-gray-400 dark:hover:bg-gray-700" disabled={isUpdatingStatus === order._id}>
+                            {isUpdatingStatus === order._id ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <>
+                                Update Status <ChevronDown className="ml-1 w-4 h-4" />
+                              </>
+                            )}
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="dark:bg-gray-800 dark:border-gray-700">
+                          {getAvailableStatusTransitions(order.status).map(
+                            (newStatus) => (
+                              <DropdownMenuItem
+                                key={newStatus}
+                                onSelect={() => handleUpdateStatus(order._id, newStatus)}
+                                className="dark:focus:bg-gray-700 dark:text-gray-200"
+                              >
+                                Mark as {newStatus}
+                              </DropdownMenuItem>
+                            )
+                          )}
+                          {getAvailableStatusTransitions(order.status).length === 0 && order.status !== 'Pending' && (
+                            <DropdownMenuItem disabled className="dark:text-gray-500">No actions available</DropdownMenuItem>
+                          )}
+                          <DropdownMenuSeparator className="dark:bg-gray-700"/>
+                          <DropdownMenuItem onSelect={() => {/* Implement view details */}} className="dark:focus:bg-gray-700 dark:text-gray-200">
+                            <Eye className="mr-2 h-4 w-4" />
+                            View Details
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={7} className="text-center py-12 text-gray-500 dark:text-gray-400">
+                    <Package className="mx-auto h-10 w-10 text-gray-400 dark:text-gray-500 mb-3" />
+                    No orders found matching your criteria.
+                    {orders.length === 0 && !isLoading && <p className="mt-1 text-sm">Once customers place orders, they will appear here.</p>}
                   </td>
                 </tr>
-              ))}
+              )}
             </tbody>
           </table>
         </div>
 
-        {filteredOrders.length === 0 && (
-          <div className="py-12 text-center text-gray-500">
-            <XCircle className="w-12 h-12 mx-auto mb-4 text-gray-400" />
-            <p className="text-lg font-medium">No orders found matching your criteria.</p>
-            <p className="text-sm mt-1">Try adjusting your search or filters.</p>
+        {/* Pagination (Keep static or implement if API supports it) */}
+        <div className="flex justify-between items-center px-4 py-3 bg-gray-50 dark:bg-gray-700/50 border-t border-gray-200 dark:border-gray-700">
+          <div className="text-gray-500 dark:text-gray-400 text-sm">
+            Showing {filteredOrders.length} of {filteredOrders.length} orders {/* Update pagination logic if implemented */}
           </div>
-        )}
-
-        {/* Pagination */}
-        <div className="flex justify-between items-center px-4 py-3 bg-gray-50 border-t border-gray-200">
-          <div className="text-gray-500 text-sm">
-            Showing 1-{filteredOrders.length} of {filteredOrders.length} orders
-          </div>
-          <div className="flex space-x-1">
-            <button className="px-3 py-1 border rounded-md bg-white text-gray-600 hover:bg-gray-50 transition-colors">Previous</button>
-            <button className="px-3 py-1 border rounded-md bg-green-500 text-white hover:bg-green-600 transition-colors">1</button>
-            <button className="px-3 py-1 border rounded-md bg-white text-gray-600 hover:bg-gray-50 transition-colors">2</button>
-            <button className="px-3 py-1 border rounded-md bg-white text-gray-600 hover:bg-gray-50 transition-colors">Next</button>
-          </div>
+          {/* Pagination buttons would go here if needed */}
         </div>
       </div>
     </div>
