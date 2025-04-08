@@ -20,10 +20,13 @@ export const DB_NAME = "kiranastore"
 export const COLLECTIONS = {
   VENDORS: "vendors",
   CUSTOMERS: "customers",
+  USERS: "users",
   PRODUCTS: "products",
   ORDERS: "orders",
   CATEGORIES: "categories",
-  INVENTORY: "inventory"
+  INVENTORY: "inventory",
+  DELIVERY_AGENTS: "deliveryAgents",
+  DELIVERIES: "deliveries",
 }
 
 let client

@@ -1,20 +1,16 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { getProducts, createProduct, seedDummyData } from "@/lib/db"
+import { getDb } from '@/lib/mongodb'
+import { COLLECTIONS } from '@/lib/mongodb'
 
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
-    // Extract query parameters
-    const searchParams = request.nextUrl.searchParams
-    const limit = Number.parseInt(searchParams.get("limit") || "20")
-    const skip = Number.parseInt(searchParams.get("skip") || "0")
-    const category = searchParams.get("category") || undefined
+    const db = await getDb()
+    const products = await db
+      .collection(COLLECTIONS.PRODUCTS)
+      .find({ isAvailable: true })
+      .toArray()
 
-    // Seed data if needed (development only)
-    if (process.env.NODE_ENV === "development") {
-      await seedDummyData()
-    }
-
-    const products = await getProducts(limit, skip, category)
     return NextResponse.json(products)
   } catch (error) {
     console.error("Error fetching products:", error)

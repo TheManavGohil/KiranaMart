@@ -2,34 +2,14 @@ import clientPromise from "./mongodb"
 import type { Product, Order, User, Vendor } from "./models"
 import { ObjectId } from "mongodb"
 
-// Database and collections names
-const DB_NAME = "kirnamart"
-const COLLECTIONS = {
-  PRODUCTS: "products",
-  ORDERS: "orders",
-  USERS: "users",
-  VENDORS: "vendors",
-  DELIVERY_AGENTS: "deliveryAgents",
-  DELIVERIES: "deliveries",
-}
+// Import DB_NAME and COLLECTIONS from where they are defined
+import { DB_NAME, COLLECTIONS, getDb } from "./mongodb"; // Adjusted import
 
-// Helper to get database connection
-export async function getDatabase() {
-  const client = await clientPromise
-  return client.db(DB_NAME)
-}
-
-// Interface for Delivery Agent data (Define locally for now)
-interface DeliveryAgent {
-  _id?: ObjectId; // MongoDB ObjectId
-  vendorId: ObjectId;
-  name: string;
-  phone: string;
-  vehicleType: 'Bike' | 'Car' | 'Scooter' | 'Other';
-  isActive: boolean;
-  createdAt?: Date;
-  updatedAt?: Date;
-}
+// Helper to get database connection (using imported getDb)
+// export async function getDatabase() {
+//   const client = await clientPromise
+//   return client.db(DB_NAME)
+// } // REMOVE - Use getDb from mongodb.ts instead
 
 // Interface for Delivery data (Add this)
 interface Delivery {
@@ -61,24 +41,24 @@ interface Delivery {
 
 // Products
 export async function getProducts(limit = 20, skip = 0, category?: string) {
-  const db = await getDatabase()
+  const db = await getDb()
   const query = category ? { category } : {}
 
   return db.collection(COLLECTIONS.PRODUCTS).find(query).skip(skip).limit(limit).toArray()
 }
 
 export async function getProductById(id: string) {
-  const db = await getDatabase()
+  const db = await getDb()
   return db.collection(COLLECTIONS.PRODUCTS).findOne({ _id: new ObjectId(id) })
 }
 
 export async function getProductsByVendor(vendorId: string) {
-  const db = await getDatabase()
+  const db = await getDb()
   return db.collection(COLLECTIONS.PRODUCTS).find({ vendorId }).toArray()
 }
 
 export async function createProduct(product: Product) {
-  const db = await getDatabase()
+  const db = await getDb()
   const { _id, ...productData } = product
   const result = await db.collection(COLLECTIONS.PRODUCTS).insertOne({
     ...productData,
@@ -89,40 +69,40 @@ export async function createProduct(product: Product) {
 }
 
 export async function updateProduct(id: string, updates: Partial<Product>) {
-  const db = await getDatabase()
+  const db = await getDb()
   const result = await db.collection(COLLECTIONS.PRODUCTS).updateOne({ _id: new ObjectId(id) }, { $set: updates })
 
   return result
 }
 
 export async function deleteProduct(id: string) {
-  const db = await getDatabase()
+  const db = await getDb()
   return db.collection(COLLECTIONS.PRODUCTS).deleteOne({ _id: new ObjectId(id) })
 }
 
 // Orders
 export async function getOrders(limit = 20, skip = 0) {
-  const db = await getDatabase()
+  const db = await getDb()
   return db.collection(COLLECTIONS.ORDERS).find({}).skip(skip).limit(limit).sort({ createdAt: -1 }).toArray()
 }
 
 export async function getOrderById(id: string) {
-  const db = await getDatabase()
+  const db = await getDb()
   return db.collection(COLLECTIONS.ORDERS).findOne({ _id: new ObjectId(id) })
 }
 
 export async function getOrdersByUser(userId: string) {
-  const db = await getDatabase()
+  const db = await getDb()
   return db.collection(COLLECTIONS.ORDERS).find({ userId }).sort({ createdAt: -1 }).toArray()
 }
 
 export async function getOrdersByVendor(vendorId: string) {
-  const db = await getDatabase()
+  const db = await getDb()
   return db.collection(COLLECTIONS.ORDERS).find({ vendorId }).sort({ createdAt: -1 }).toArray()
 }
 
 export async function createOrder(order: Order) {
-  const db = await getDatabase()
+  const db = await getDb()
   const now = new Date()
   const { _id, ...orderData } = order
   const result = await db.collection(COLLECTIONS.ORDERS).insertOne({
@@ -140,7 +120,7 @@ export async function updateOrderStatus(
   status: Order["status"],
   vendorId: string
 ) {
-  const db = await getDatabase()
+  const db = await getDb()
   const vendorObjectId = new ObjectId(vendorId)
 
   const result = await db.collection(COLLECTIONS.ORDERS).updateOne(
@@ -161,17 +141,17 @@ export async function updateOrderStatus(
 
 // Users
 export async function getUserById(id: string) {
-  const db = await getDatabase()
+  const db = await getDb()
   return db.collection(COLLECTIONS.USERS).findOne({ _id: new ObjectId(id) })
 }
 
 export async function getUserByEmail(email: string) {
-  const db = await getDatabase()
+  const db = await getDb()
   return db.collection(COLLECTIONS.USERS).findOne({ email })
 }
 
 export async function createUser(user: User) {
-  const db = await getDatabase()
+  const db = await getDb()
   const { _id, ...userData } = user
   const result = await db.collection(COLLECTIONS.USERS).insertOne({
     ...userData,
@@ -184,7 +164,7 @@ export async function createUser(user: User) {
 }
 
 export async function updateUser(id: string, updates: Partial<User>) {
-  const db = await getDatabase()
+  const db = await getDb()
   const result = await db.collection(COLLECTIONS.USERS).updateOne({ _id: new ObjectId(id) }, { $set: updates })
 
   return result
@@ -192,17 +172,17 @@ export async function updateUser(id: string, updates: Partial<User>) {
 
 // Vendors
 export async function getVendorById(id: string) {
-  const db = await getDatabase()
+  const db = await getDb()
   return db.collection(COLLECTIONS.VENDORS).findOne({ _id: new ObjectId(id) })
 }
 
 export async function getVendorByEmail(email: string) {
-  const db = await getDatabase()
+  const db = await getDb()
   return db.collection(COLLECTIONS.VENDORS).findOne({ email })
 }
 
 export async function createVendor(vendor: Vendor) {
-  const db = await getDatabase()
+  const db = await getDb()
   const { _id, ...vendorData } = vendor
   const result = await db.collection(COLLECTIONS.VENDORS).insertOne({
     ...vendorData,
@@ -214,7 +194,7 @@ export async function createVendor(vendor: Vendor) {
 }
 
 export async function updateVendor(id: string, updates: Partial<Vendor>) {
-  const db = await getDatabase()
+  const db = await getDb()
   const result = await db.collection(COLLECTIONS.VENDORS).updateOne({ _id: new ObjectId(id) }, { $set: updates })
 
   return result
@@ -222,7 +202,7 @@ export async function updateVendor(id: string, updates: Partial<Vendor>) {
 
 // Cart operations (using user's collection)
 export async function addToCart(userId: string, product: { productId: string; quantity: number }) {
-  const db = await getDatabase()
+  const db = await getDb()
   const result = await db
     .collection(COLLECTIONS.USERS)
     .updateOne({ _id: new ObjectId(userId) }, { $push: { cart: product as any } })
@@ -231,14 +211,14 @@ export async function addToCart(userId: string, product: { productId: string; qu
 }
 
 export async function getCart(userId: string) {
-  const db = await getDatabase()
+  const db = await getDb()
   const user = await db.collection(COLLECTIONS.USERS).findOne({ _id: new ObjectId(userId) })
 
   return user?.cart || []
 }
 
 export async function updateCartItem(userId: string, productId: string, quantity: number) {
-  const db = await getDatabase()
+  const db = await getDb()
   const result = await db.collection(COLLECTIONS.USERS).updateOne(
     {
       _id: new ObjectId(userId),
@@ -251,7 +231,7 @@ export async function updateCartItem(userId: string, productId: string, quantity
 }
 
 export async function removeFromCart(userId: string, productId: string) {
-  const db = await getDatabase()
+  const db = await getDb()
   const result = await db
     .collection(COLLECTIONS.USERS)
     .updateOne({ _id: new ObjectId(userId) }, { $pull: { cart: { productId } as any } })
@@ -260,7 +240,7 @@ export async function removeFromCart(userId: string, productId: string) {
 }
 
 export async function clearCart(userId: string) {
-  const db = await getDatabase()
+  const db = await getDb()
   const result = await db.collection(COLLECTIONS.USERS).updateOne({ _id: new ObjectId(userId) }, { $set: { cart: [] } })
 
   return result
@@ -268,7 +248,7 @@ export async function clearCart(userId: string) {
 
 // Seed dummy data for development
 export async function seedDummyData() {
-  const db = await getDatabase()
+  const db = await getDb()
 
   // Check if data already exists
   const productsCount = await db.collection(COLLECTIONS.PRODUCTS).countDocuments()
@@ -481,86 +461,9 @@ export async function seedDummyData() {
   await db.collection(COLLECTIONS.USERS).insertMany(users)
 }
 
-// Delivery Agent Functions
-export async function createDeliveryAgent(agentData: Omit<DeliveryAgent, '_id' | 'createdAt' | 'updatedAt' | 'vendorId'> & { vendorId: string }) {
-  const db = await getDatabase();
-  const now = new Date();
-  // Ensure vendorId is ObjectId
-  const vendorObjectId = new ObjectId(agentData.vendorId);
-  // Prepare data for insertion, excluding the string vendorId
-  const { vendorId: stringVendorId, ...restOfAgentData } = agentData;
-  const result = await db.collection<Omit<DeliveryAgent, '_id'>>(COLLECTIONS.DELIVERY_AGENTS).insertOne({
-    ...restOfAgentData,
-    vendorId: vendorObjectId, // Store as ObjectId
-    isActive: agentData.isActive !== undefined ? agentData.isActive : true, // Default to active
-    createdAt: now,
-    updatedAt: now,
-  });
-  // The incorrect lines referencing vendorDataForInsert are removed here.
-  return result;
-}
-
-export async function getDeliveryAgentsByVendor(vendorId: string) {
-  const db = await getDatabase();
-  const vendorObjectId = new ObjectId(vendorId);
-  // Use the locally defined interface for type safety
-  return db.collection<DeliveryAgent>(COLLECTIONS.DELIVERY_AGENTS)
-           .find({ vendorId: vendorObjectId })
-           .sort({ name: 1 }) // Sort by name
-           .toArray();
-}
-
-export async function getDeliveryAgentById(agentId: string, vendorId: string) {
-  const db = await getDatabase();
-  const agentObjectId = new ObjectId(agentId);
-  const vendorObjectId = new ObjectId(vendorId);
-  return db.collection<DeliveryAgent>(COLLECTIONS.DELIVERY_AGENTS).findOne({
-    _id: agentObjectId,
-    vendorId: vendorObjectId // Ensure agent belongs to the vendor
-  });
-}
-
-export async function updateDeliveryAgent(
-  agentId: string,
-  vendorId: string,
-  // Use the locally defined interface for updates
-  updates: Partial<Omit<DeliveryAgent, '_id' | 'vendorId' | 'createdAt'>>
-) {
-  const db = await getDatabase();
-  const agentObjectId = new ObjectId(agentId);
-  const vendorObjectId = new ObjectId(vendorId);
-
-  // Ensure createdAt/vendorId are not in updates
-  const { createdAt, ...validUpdates } = updates as any; // vendorId is already excluded by Omit
-
-  if (Object.keys(validUpdates).length === 0) {
-    // Avoid empty update operations
-    // Return something compatible with UpdateResult type if needed, or adjust based on usage
-    return { matchedCount: 1, modifiedCount: 0, acknowledged: true, upsertedCount: 0, upsertedId: null };
-  }
-
-  const result = await db.collection<DeliveryAgent>(COLLECTIONS.DELIVERY_AGENTS).updateOne(
-    { _id: agentObjectId, vendorId: vendorObjectId }, // Match agent AND vendor
-    { $set: { ...validUpdates, updatedAt: new Date() } }
-  );
-  return result;
-}
-
-export async function deleteDeliveryAgent(agentId: string, vendorId: string) {
-  const db = await getDatabase();
-  const agentObjectId = new ObjectId(agentId);
-  const vendorObjectId = new ObjectId(vendorId);
-  const result = await db.collection<DeliveryAgent>(COLLECTIONS.DELIVERY_AGENTS).deleteOne({
-     _id: agentObjectId,
-     vendorId: vendorObjectId // Ensure agent belongs to the vendor
-  });
-  // TODO: Consider what happens to deliveries assigned to this agent. Reassign? Mark as unassigned?
-  return result;
-}
-
-// Fetch deliveries, potentially joining agent info
+// Deliveries (using native driver for now)
 export async function getDeliveriesByVendor(vendorId: string) {
-  const db = await getDatabase();
+  const db = await getDb();
   const vendorObjectId = new ObjectId(vendorId);
 
   // Use aggregation pipeline to potentially lookup agent details
@@ -595,7 +498,7 @@ export async function updateDeliveryStatus(
   newStatus: Delivery['status'],
   vendorId: string
 ) {
-  const db = await getDatabase();
+  const db = await getDb();
   const deliveryObjectId = new ObjectId(deliveryId);
   const vendorObjectId = new ObjectId(vendorId);
 
@@ -622,7 +525,7 @@ export async function assignAgentToDelivery(
   agentId: string | null, // Agent's MongoDB _id, or null to unassign
   vendorId: string
 ) {
-  const db = await getDatabase();
+  const db = await getDb();
   const deliveryObjectId = new ObjectId(deliveryId);
   const vendorObjectId = new ObjectId(vendorId);
   const agentObjectId = agentId ? new ObjectId(agentId) : null;
