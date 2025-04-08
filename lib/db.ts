@@ -39,6 +39,17 @@ interface Delivery {
   updatedAt?: Date;
 }
 
+export interface DeliveryAgent {
+  _id?: string
+  vendorId: string
+  name: string
+  phone: string
+  vehicleType: 'bike' | 'scooter' | 'car' | 'van'
+  isActive: boolean
+  createdAt?: Date
+  updatedAt?: Date
+}
+
 // Products
 export async function getProducts(limit = 20, skip = 0, category?: string) {
   const db = await getDb()
@@ -544,5 +555,23 @@ export async function assignAgentToDelivery(
     }
   );
   return result;
+}
+
+export async function updateDeliveryAgent(vendorId: string, agentId: string, data: Partial<DeliveryAgent>) {
+  const db = await getDb()
+  const result = await db.collection(COLLECTIONS.DELIVERY_AGENTS).updateOne(
+    { _id: new ObjectId(agentId), vendorId },
+    { $set: data }
+  )
+  return result
+}
+
+export async function deleteDeliveryAgent(vendorId: string, agentId: string) {
+  const db = await getDb()
+  const result = await db.collection(COLLECTIONS.DELIVERY_AGENTS).deleteOne({
+    _id: new ObjectId(agentId),
+    vendorId
+  })
+  return result
 }
 

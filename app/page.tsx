@@ -1,8 +1,29 @@
+"use client"
+
 import Image from "next/image"
 import Link from "next/link"
 import { ArrowRight, Leaf, Truck, ShieldCheck, Search, MapPin, Star, Clock } from "lucide-react"
 import ProductCard from "@/components/product-card"
 import { getProducts } from "@/lib/db"
+
+const ProductGrid = ({ products }: { products: Product[] }) => {
+  const handleAddToCart = (product: Product) => {
+    // TODO: Implement add to cart functionality
+    console.log('Adding to cart:', product)
+  }
+
+  return (
+    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 gap-6">
+      {products.map((product) => (
+        <ProductCard 
+          key={product._id?.toString()} 
+          product={product} 
+          onAddToCart={() => handleAddToCart(product)} 
+        />
+      ))}
+    </div>
+  )
+}
 
 export default async function Home() {
   // Fetch featured products
@@ -136,11 +157,7 @@ export default async function Home() {
           </Link>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 gap-6">
-          {products.map((product) => (
-            <ProductCard key={product._id?.toString()} product={product} onAddToCart={() => {}} />
-          ))}
-        </div>
+        <ProductGrid products={products} />
       </section>
 
       {/* Why Choose Us */}
