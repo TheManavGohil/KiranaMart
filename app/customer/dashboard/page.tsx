@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { getUser, redirectIfNotAuthenticated } from '@/lib/auth';
 import { 
   ShoppingBag, Package, CreditCard, Clock, Search as LucideSearch, Heart, 
-  ShoppingCart, MapPin, RefreshCw, Star, Truck, Tag, ChevronRight
+  ShoppingCart, MapPin, RefreshCw, Star, Truck, Tag, ChevronRight, Image as ImageIcon
 } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
@@ -36,7 +36,21 @@ interface Product {
   isAvailable: boolean;
 }
 
-const PLACEHOLDER_IMAGE = '/images/placeholder.jpg';
+// Export placeholder image components so they can be reused
+export const PlaceholderCircle = ({ name }: { name: string }) => (
+  <div className="w-full h-full flex items-center justify-center bg-gray-200 text-gray-500">
+    <ImageIcon className="h-8 w-8" />
+  </div>
+);
+
+export const PlaceholderRect = ({ name }: { name: string }) => (
+  <div className="w-full h-full flex items-center justify-center bg-gray-200 text-gray-500">
+    <div className="flex flex-col items-center">
+      <ImageIcon className="h-8 w-8 mb-1" />
+      <span className="text-xs">{name.substring(0, 1)}</span>
+    </div>
+  </div>
+);
 
 export default function CustomerDashboard() {
   const [user, setUser] = useState<User | null>(null);
@@ -253,12 +267,16 @@ export default function CustomerDashboard() {
                 className="flex-shrink-0 w-20"
               >
                 <div className="relative w-16 h-16 mx-auto rounded-full overflow-hidden border-2 border-gray-200">
-                  <Image
-                    src={category.image || PLACEHOLDER_IMAGE}
-                    alt={category.name}
-                    fill
-                    className="object-cover"
-                  />
+                  {category.image ? (
+                    <Image
+                      src={category.image}
+                      alt={category.name}
+                      fill
+                      className="object-cover"
+                    />
+                  ) : (
+                    <PlaceholderCircle name={category.name} />
+                  )}
                 </div>
                 <p className="text-xs text-center mt-1 text-gray-800">{category.name}</p>
               </Link>
@@ -281,12 +299,16 @@ export default function CustomerDashboard() {
                 className="bg-white rounded-lg shadow-sm overflow-hidden flex"
               >
                 <div className="relative w-20 h-20 flex-shrink-0">
-                  <Image
-                    src={product.image || PLACEHOLDER_IMAGE}
-                    alt={product.name}
-                    fill
-                    className="object-cover"
-                  />
+                  {product.image ? (
+                    <Image
+                      src={product.image}
+                      alt={product.name}
+                      fill
+                      className="object-cover"
+                    />
+                  ) : (
+                    <PlaceholderRect name={product.name} />
+                  )}
                 </div>
                 <div className="p-2 flex flex-col justify-between flex-grow">
                   <div>
@@ -356,12 +378,16 @@ export default function CustomerDashboard() {
                 className="bg-white rounded-lg shadow-sm overflow-hidden"
               >
                 <div className="relative h-32">
-                  <Image
-                    src={product.image || PLACEHOLDER_IMAGE}
-                    alt={product.name}
-                    fill
-                    className="object-cover"
-                  />
+                  {product.image ? (
+                    <Image
+                      src={product.image}
+                      alt={product.name}
+                      fill
+                      className="object-cover"
+                    />
+                  ) : (
+                    <PlaceholderRect name={product.name} />
+                  )}
                   <span className="absolute top-2 right-2 bg-white rounded-full p-1">
                     <Heart className="h-4 w-4 text-gray-400" />
                   </span>
