@@ -4,7 +4,7 @@ import { Inter } from "next/font/google"
 import Navbar from "@/components/navbar"
 import Footer from "@/components/footer"
 import "./globals.css"
-import { isAuthenticated as checkAuth } from '@/lib/auth'
+import { Providers } from "@/components/providers"
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -22,9 +22,11 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body className={`${inter.className} min-h-screen flex flex-col`}>
-        <Navbar />
-        <main className="flex-grow">{children}</main>
-        <Footer />
+        <Providers>
+          <Navbar />
+          <main className="flex-grow">{children}</main>
+          <Footer />
+        </Providers>
       </body>
     </html>
   )

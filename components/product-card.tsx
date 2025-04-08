@@ -3,7 +3,7 @@
 import Image from "next/image"
 import Link from "next/link"
 import { ShoppingCart, Star } from "lucide-react"
-import type { Product } from "@/lib/models"
+import type { Product } from "@/lib/db"
 
 interface ProductCardProps {
   product: Product

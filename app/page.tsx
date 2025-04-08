@@ -2,9 +2,10 @@
 
 import Image from "next/image"
 import Link from "next/link"
-import { ArrowRight, Leaf, Truck, ShieldCheck, Search, MapPin, Star, Clock } from "lucide-react"
+import { useState, useEffect } from 'react'
+import { ArrowRight, Leaf, Truck, ShieldCheck, Search, MapPin, Star, Clock, Loader2 } from "lucide-react"
 import ProductCard from "@/components/product-card"
-import { getProducts } from "@/lib/db"
+import { Product } from "@/lib/db"
 
 const ProductGrid = ({ products }: { products: Product[] }) => {
   const handleAddToCart = (product: Product) => {
@@ -25,9 +26,33 @@ const ProductGrid = ({ products }: { products: Product[] }) => {
   )
 }
 
-export default async function Home() {
-  // Fetch featured products
-  const products = await getProducts(6)
+export default function Home() {
+  const [products, setProducts] = useState<Product[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchFeaturedProducts = async () => {
+      try {
+        setIsLoading(true);
+        const response = await fetch('/api/products/featured');
+        if (!response.ok) {
+          throw new Error('Failed to fetch products');
+        }
+        const data = await response.json();
+        setProducts(data);
+        setError(null);
+      } catch (err) {
+        console.error(err);
+        setError(err instanceof Error ? err.message : 'An unknown error occurred');
+        setProducts([]); // Clear products on error
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchFeaturedProducts();
+  }, []); // Empty dependency array ensures this runs once on mount
 
   const categories = [
     { name: "Fruits", image: "/categories/fruits.jpg" },
@@ -157,7 +182,22 @@ export default async function Home() {
           </Link>
         </div>
 
-        <ProductGrid products={products} />
+        {isLoading && (
+          <div className="flex justify-center items-center h-40">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          </div>
+        )}
+        {error && (
+          <div className="text-center text-red-600 dark:text-red-400 bg-red-100 dark:bg-red-900/50 p-4 rounded-lg">
+            <p>Error loading products: {error}</p>
+          </div>
+        )}
+        {!isLoading && !error && products.length > 0 && (
+          <ProductGrid products={products} />
+        )}
+        {!isLoading && !error && products.length === 0 && (
+          <p className="text-center text-gray-500 dark:text-gray-400">No featured products found.</p>
+        )}
       </section>
 
       {/* Why Choose Us */}
