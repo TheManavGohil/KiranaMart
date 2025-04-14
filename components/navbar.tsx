@@ -215,7 +215,7 @@ const Navbar = () => {
               onClick={toggleMenu}
               className="md:hidden p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
             >
-              {isMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
+              <Menu className="h-6 w-6" />
             </button>
           </div>
         </div>
@@ -234,103 +234,191 @@ const Navbar = () => {
           </div>
         </div>
 
-        {/* Mobile Menu */}
+        {/* Mobile Menu Overlay - for when menu is open */}
         {isMenuOpen && (
-          <div className="md:hidden mt-3 pb-2 pt-2 border-t border-gray-200 dark:border-gray-700">
-            <div className="flex flex-col space-y-3">
-              {!isAuth ? (
-                <>
-                  <Link 
-                    href="/auth" 
-                    className="hover:bg-gray-100 dark:hover:bg-gray-700 px-3 py-2 rounded transition-colors flex items-center"
-                    onClick={toggleMenu}
-                  >
-                    <User className="h-5 w-5 mr-2" />
-                    Sign In
-                  </Link>
-                  <Link 
-                    href="/auth" 
-                    className="bg-green-500 text-white hover:bg-green-600 px-3 py-2 rounded transition-colors"
-                    onClick={toggleMenu}
-                  >
-                    Create Account
-                  </Link>
-                </>
-              ) : (
-                <>
-                  <div className="px-3 py-2 border-b border-gray-200 dark:border-gray-700 mb-2">
-                    <div className="flex items-center">
-                      <div className="h-8 w-8 rounded-full bg-green-100 flex items-center justify-center text-green-700 mr-2">
-                        {userName ? userName[0].toUpperCase() : <User className="h-5 w-5" />}
-                      </div>
-                      <div>
-                        <p className="font-medium">{userName || "User"}</p>
-                        <p className="text-xs text-gray-500 dark:text-gray-400">{userRole === 'vendor' ? 'Store Owner' : 'Customer'}</p>
-                      </div>
-                    </div>
+          <div className="md:hidden fixed inset-0 bg-black bg-opacity-50 z-40" onClick={toggleMenu}></div>
+        )}
+
+        {/* Mobile Menu - Slide out drawer */}
+        <div 
+          className={`md:hidden fixed inset-y-0 left-0 transform ${isMenuOpen ? 'translate-x-0' : '-translate-x-full'} w-3/4 max-w-xs bg-white dark:bg-gray-800 shadow-xl z-50 transition-transform duration-300 ease-in-out h-full overflow-y-auto`}
+        >
+          <div className="p-5 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+            <Link href="/" className="flex items-center space-x-2" onClick={toggleMenu}>
+              <div className="relative w-8 h-8">
+                <Image src="/logo.png" alt="KirnaMart Logo" fill className="object-contain" priority />
+              </div>
+              <span className="text-lg font-bold text-green-600 dark:text-green-400">KirnaMart</span>
+            </Link>
+            <button
+              onClick={toggleMenu}
+              className="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700"
+            >
+              <X className="h-6 w-6" />
+            </button>
+          </div>
+          
+          <div className="py-4 px-5">
+            {isAuth ? (
+              <>
+                {/* User info section */}
+                <div className="flex items-center space-x-3 py-4 border-b border-gray-200 dark:border-gray-700 mb-4">
+                  <div className="h-10 w-10 rounded-full bg-green-100 dark:bg-green-800 flex items-center justify-center text-green-700 dark:text-green-300">
+                    {userName ? userName[0].toUpperCase() : <User className="h-6 w-6" />}
                   </div>
-                  
-                  <Link 
-                    href={userRole === 'vendor' ? '/vendor/dashboard' : '/customer/dashboard'} 
-                    className="hover:bg-gray-100 dark:hover:bg-gray-700 px-3 py-2 rounded transition-colors"
+                  <div>
+                    <div className="font-medium text-gray-900 dark:text-gray-100">{userName || "User"}</div>
+                    <div className="text-sm text-gray-500 dark:text-gray-400">{userRole === 'vendor' ? 'Store Owner' : 'Customer'}</div>
+                  </div>
+                </div>
+                
+                {/* Nav links */}
+                <div className="space-y-3">
+                  <Link
+                    href={userRole === 'vendor' ? '/vendor/dashboard' : '/customer/dashboard'}
+                    className="flex items-center space-x-3 w-full p-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700"
                     onClick={toggleMenu}
                   >
-                    Dashboard
+                    <div className="h-8 w-8 rounded-md bg-green-100 dark:bg-green-800 flex items-center justify-center">
+                      <Store className="h-4 w-4 text-green-600 dark:text-green-400" />
+                    </div>
+                    <span>Dashboard</span>
                   </Link>
                   
                   {userRole === 'customer' && (
-                    <Link 
-                      href="/customer/cart" 
-                      className="hover:bg-gray-100 dark:hover:bg-gray-700 px-3 py-2 rounded transition-colors flex items-center"
-                      onClick={toggleMenu}
-                    >
-                      <ShoppingCart className="h-5 w-5 mr-2" />
-                      My Cart
-                    </Link>
-                  )}
-                  
-                  {userRole === 'vendor' ? (
                     <>
-                      <Link 
-                        href="/vendor/inventory" 
-                        className="hover:bg-gray-100 dark:hover:bg-gray-700 px-3 py-2 rounded transition-colors"
+                      <Link
+                        href="/customer/cart"
+                        className="flex items-center space-x-3 w-full p-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700"
                         onClick={toggleMenu}
                       >
-                        Inventory
+                        <div className="h-8 w-8 rounded-md bg-green-100 dark:bg-green-800 flex items-center justify-center">
+                          <ShoppingCart className="h-4 w-4 text-green-600 dark:text-green-400" />
+                        </div>
+                        <span>Cart</span>
                       </Link>
-                      <Link 
-                        href="/vendor/settings" 
-                        className="hover:bg-gray-100 dark:hover:bg-gray-700 px-3 py-2 rounded transition-colors"
+                      
+                      <Link
+                        href="/customer/profile"
+                        className="flex items-center space-x-3 w-full p-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700"
                         onClick={toggleMenu}
                       >
-                        Store Settings
+                        <div className="h-8 w-8 rounded-md bg-green-100 dark:bg-green-800 flex items-center justify-center">
+                          <User className="h-4 w-4 text-green-600 dark:text-green-400" />
+                        </div>
+                        <span>My Profile</span>
+                      </Link>
+                      
+                      <Link
+                        href="/customer/orders"
+                        className="flex items-center space-x-3 w-full p-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700"
+                        onClick={toggleMenu}
+                      >
+                        <div className="h-8 w-8 rounded-md bg-green-100 dark:bg-green-800 flex items-center justify-center">
+                          <ShoppingCart className="h-4 w-4 text-green-600 dark:text-green-400" />
+                        </div>
+                        <span>My Orders</span>
                       </Link>
                     </>
-                  ) : (
-                    <Link 
-                      href="/customer/profile" 
-                      className="hover:bg-gray-100 dark:hover:bg-gray-700 px-3 py-2 rounded transition-colors"
-                      onClick={toggleMenu}
-                    >
-                      My Profile
-                    </Link>
                   )}
                   
-                  <button 
-                    onClick={() => {
-                      handleLogout();
-                      toggleMenu();
-                    }}
-                    className="text-left text-red-600 hover:bg-gray-100 dark:hover:bg-gray-700 px-3 py-2 rounded transition-colors flex items-center"
+                  {userRole === 'vendor' && (
+                    <>
+                      <Link
+                        href="/vendor/inventory"
+                        className="flex items-center space-x-3 w-full p-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700"
+                        onClick={toggleMenu}
+                      >
+                        <div className="h-8 w-8 rounded-md bg-green-100 dark:bg-green-800 flex items-center justify-center">
+                          <Store className="h-4 w-4 text-green-600 dark:text-green-400" />
+                        </div>
+                        <span>Inventory</span>
+                      </Link>
+                      
+                      <Link
+                        href="/vendor/orders"
+                        className="flex items-center space-x-3 w-full p-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700"
+                        onClick={toggleMenu}
+                      >
+                        <div className="h-8 w-8 rounded-md bg-green-100 dark:bg-green-800 flex items-center justify-center">
+                          <ShoppingCart className="h-4 w-4 text-green-600 dark:text-green-400" />
+                        </div>
+                        <span>Orders</span>
+                      </Link>
+                      
+                      <Link
+                        href="/vendor/settings"
+                        className="flex items-center space-x-3 w-full p-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700"
+                        onClick={toggleMenu}
+                      >
+                        <div className="h-8 w-8 rounded-md bg-green-100 dark:bg-green-800 flex items-center justify-center">
+                          <Settings className="h-4 w-4 text-green-600 dark:text-green-400" />
+                        </div>
+                        <span>Store Settings</span>
+                      </Link>
+                    </>
+                  )}
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="space-y-3 py-4">
+                  <Link 
+                    href="/auth" 
+                    className="flex items-center space-x-3 w-full p-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700"
+                    onClick={toggleMenu}
                   >
-                    <LogOut className="h-5 w-5 mr-2" />
-                    Logout
-                  </button>
-                </>
-              )}
-            </div>
+                    <div className="h-8 w-8 rounded-md bg-green-100 dark:bg-green-800 flex items-center justify-center">
+                      <User className="h-4 w-4 text-green-600 dark:text-green-400" />
+                    </div>
+                    <span>Sign In</span>
+                  </Link>
+                  
+                  <Link
+                    href="/auth"
+                    className="flex items-center space-x-3 w-full p-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700"
+                    onClick={toggleMenu}
+                  >
+                    <div className="h-8 w-8 rounded-md bg-green-100 dark:bg-green-800 flex items-center justify-center">
+                      <User className="h-4 w-4 text-green-600 dark:text-green-400" />
+                    </div>
+                    <span>Sign Up</span>
+                  </Link>
+                </div>
+              </>
+            )}
           </div>
-        )}
+          
+          <div className="absolute bottom-0 left-0 right-0 p-5 border-t border-gray-200 dark:border-gray-700">
+            <div className="flex items-center justify-between">
+              <button
+                onClick={toggleDarkMode}
+                className="flex items-center space-x-3 w-full p-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700"
+              >
+                <div className="h-8 w-8 rounded-md bg-gray-100 dark:bg-gray-700 flex items-center justify-center">
+                  {isDarkMode ? (
+                    <Sun className="h-4 w-4 text-yellow-400" />
+                  ) : (
+                    <Moon className="h-4 w-4 text-gray-600 dark:text-gray-400" />
+                  )}
+                </div>
+                <span>{isDarkMode ? 'Light Mode' : 'Dark Mode'}</span>
+              </button>
+            </div>
+            
+            {isAuth && (
+              <button
+                onClick={handleLogout}
+                className="mt-4 flex items-center space-x-3 w-full p-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 text-red-600 dark:text-red-400"
+              >
+                <div className="h-8 w-8 rounded-md bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
+                  <LogOut className="h-4 w-4 text-red-600 dark:text-red-400" />
+                </div>
+                <span>Logout</span>
+              </button>
+            )}
+          </div>
+        </div>
       </div>
     </nav>
   )
