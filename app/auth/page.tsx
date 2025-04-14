@@ -171,23 +171,23 @@ export default function AuthPage() {
   if (!isAuthChecked) return null;
   
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
       <div className="sm:mx-auto sm:w-full sm:max-w-md">
         <div className="text-center">
-          <h2 className="text-3xl font-extrabold text-gray-900">
+          <h2 className="text-3xl font-extrabold text-gray-900 dark:text-gray-100">
             Kirana Store
           </h2>
-          <p className="mt-2 text-sm text-gray-600">
+          <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
             Your neighborhood grocery store
           </p>
         </div>
       </div>
 
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
-        <div className="bg-white py-8 px-4 shadow sm:rounded-lg sm:px-10">
+        <div className="bg-white dark:bg-gray-800 py-8 px-4 shadow sm:rounded-lg sm:px-10 border border-gray-200 dark:border-gray-700">
           <button
             onClick={handleBack}
-            className="flex items-center text-sm text-gray-600 hover:text-gray-900 mb-6"
+            className="flex items-center text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 mb-6"
           >
             <LucideArrowLeft className="w-4 h-4 mr-1" />
             Back
@@ -202,7 +202,7 @@ export default function AuthPage() {
                 animate="visible"
                 exit="exit"
               >
-                <h2 className="text-center text-2xl font-bold text-gray-900 mb-6">
+                <h2 className="text-center text-2xl font-bold text-gray-900 dark:text-gray-100 mb-6">
                   Continue as
                 </h2>
                 
@@ -210,19 +210,19 @@ export default function AuthPage() {
                   <motion.button
                     variants={itemVariants}
                     onClick={() => handleRoleSelect('customer')}
-                    className="flex flex-col items-center justify-center p-6 border border-gray-300 rounded-lg hover:border-indigo-500 hover:bg-indigo-50 transition-colors"
+                    className="flex flex-col items-center justify-center p-6 border border-gray-300 dark:border-gray-600 rounded-lg hover:border-green-500 dark:hover:border-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 transition-colors"
                   >
-                    <LucideUser className="h-12 w-12 text-indigo-600 mb-2" />
-                    <span className="font-medium text-gray-900">Customer</span>
+                    <LucideUser className="h-12 w-12 text-green-600 dark:text-green-400 mb-2" />
+                    <span className="font-medium text-gray-900 dark:text-gray-100">Customer</span>
                   </motion.button>
                   
                   <motion.button
                     variants={itemVariants}
                     onClick={() => handleRoleSelect('vendor')}
-                    className="flex flex-col items-center justify-center p-6 border border-gray-300 rounded-lg hover:border-indigo-500 hover:bg-indigo-50 transition-colors"
+                    className="flex flex-col items-center justify-center p-6 border border-gray-300 dark:border-gray-600 rounded-lg hover:border-green-500 dark:hover:border-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 transition-colors"
                   >
-                    <LucideStore className="h-12 w-12 text-indigo-600 mb-2" />
-                    <span className="font-medium text-gray-900">Vendor</span>
+                    <LucideStore className="h-12 w-12 text-green-600 dark:text-green-400 mb-2" />
+                    <span className="font-medium text-gray-900 dark:text-gray-100">Vendor</span>
                   </motion.button>
                 </div>
               </motion.div>
@@ -237,50 +237,56 @@ export default function AuthPage() {
                 exit="exit"
                 onSubmit={handleSubmit}
               >
-                <h2 className="text-center text-2xl font-bold text-gray-900 mb-6">
+                <h2 className="text-center text-2xl font-bold text-gray-900 dark:text-gray-100 mb-6">
                   {currentView === 'signin' ? 'Sign in' : 'Sign up'} as {role === 'vendor' ? 'Vendor' : 'Customer'}
                 </h2>
                 
                 {error && (
-                  <div className="mb-4 p-2 bg-red-100 border border-red-400 text-red-700 rounded">
+                  <div className="mb-4 p-2 bg-red-100 dark:bg-red-900/30 border border-red-400 dark:border-red-800 text-red-700 dark:text-red-400 rounded">
                     {error}
                   </div>
                 )}
                 
                 {currentView === 'signup' && (
                   <motion.div variants={itemVariants} className="mb-4">
-                    <label htmlFor="name" className="block text-sm font-medium text-gray-700">
+                    <label htmlFor="name" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                       Full Name
                     </label>
-                    <input
-                      id="name"
-                      name="name"
-                      type="text"
-                      required
-                      value={formData.name}
-                      onChange={handleInputChange}
-                      className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-                    />
+                    <div className="mt-1">
+                      <input
+                        id="name"
+                        name="name"
+                        type="text"
+                        autoComplete="name"
+                        required
+                        value={formData.name}
+                        onChange={handleInputChange}
+                        className="appearance-none block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                      />
+                    </div>
                   </motion.div>
                 )}
                 
                 <motion.div variants={itemVariants} className="mb-4">
-                  <label htmlFor="email" className="block text-sm font-medium text-gray-700">
-                    Email
+                  <label htmlFor="email" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                    Email address
                   </label>
-                  <input
-                    id="email"
-                    name="email"
-                    type="email"
-                    required
-                    value={formData.email}
-                    onChange={handleInputChange}
-                    className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-                  />
+                  <div className="mt-1">
+                    <input
+                      id="email"
+                      name="email"
+                      type="email"
+                      autoComplete="email"
+                      required
+                      value={formData.email}
+                      onChange={handleInputChange}
+                      className="appearance-none block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                    />
+                  </div>
                 </motion.div>
                 
                 <motion.div variants={itemVariants} className="mb-6">
-                  <label htmlFor="password" className="block text-sm font-medium text-gray-700">
+                  <label htmlFor="password" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                     Password
                   </label>
                   <div className="mt-1 relative">
@@ -288,21 +294,34 @@ export default function AuthPage() {
                       id="password"
                       name="password"
                       type={showPassword ? "text" : "password"}
+                      autoComplete={currentView === 'signin' ? "current-password" : "new-password"}
                       required
                       value={formData.password}
                       onChange={handleInputChange}
-                      className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 pr-10 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                      className="appearance-none block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
                     />
                     <button
                       type="button"
                       onClick={() => setShowPassword(!showPassword)}
-                      className="absolute inset-y-0 right-0 pr-3 flex items-center"
+                      className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 dark:text-gray-500 hover:text-gray-500 dark:hover:text-gray-400"
                     >
                       {showPassword ? (
-                        <LucideEyeOff className="h-5 w-5 text-gray-400" />
+                        <LucideEyeOff className="h-5 w-5" />
                       ) : (
-                        <LucideEye className="h-5 w-5 text-gray-400" />
+                        <LucideEye className="h-5 w-5" />
                       )}
+                    </button>
+                  </div>
+                </motion.div>
+                
+                <motion.div variants={itemVariants} className="flex items-center justify-between mb-6">
+                  <div className="text-sm">
+                    <button
+                      type="button"
+                      onClick={toggleView}
+                      className="font-medium text-green-600 dark:text-green-400 hover:text-green-500 dark:hover:text-green-300"
+                    >
+                      {currentView === 'signin' ? "Don't have an account? Sign up" : "Already have an account? Sign in"}
                     </button>
                   </div>
                 </motion.div>
@@ -311,21 +330,19 @@ export default function AuthPage() {
                   <button
                     type="submit"
                     disabled={loading}
-                    className={`w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 ${loading ? 'opacity-70 cursor-not-allowed' : ''}`}
+                    className={`w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 dark:bg-green-700 hover:bg-green-700 dark:hover:bg-green-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 ${loading ? 'opacity-70 cursor-not-allowed' : ''}`}
                   >
-                    {loading ? 'Processing...' : currentView === 'signin' ? 'Sign In' : 'Sign Up'}
-                  </button>
-                </motion.div>
-                
-                <motion.div variants={itemVariants} className="mt-4 text-center">
-                  <button
-                    type="button"
-                    onClick={toggleView}
-                    className="text-sm text-indigo-600 hover:text-indigo-500"
-                  >
-                    {currentView === 'signin'
-                      ? "Don't have an account? Sign up"
-                      : 'Already have an account? Sign in'}
+                    {loading ? (
+                      <div className="flex items-center">
+                        <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        Processing...
+                      </div>
+                    ) : (
+                      currentView === 'signin' ? 'Sign in' : 'Sign up'
+                    )}
                   </button>
                 </motion.div>
               </motion.form>

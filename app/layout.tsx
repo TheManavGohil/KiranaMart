@@ -4,14 +4,14 @@ import { Inter } from "next/font/google"
 import Navbar from "@/components/navbar"
 import Footer from "@/components/footer"
 import "./globals.css"
-import { Providers } from "@/components/providers"
+import { Providers } from "@/app/providers"
 
 const inter = Inter({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
   title: "KirnaMart - Fresh Groceries Delivered",
   description: "A green-themed grocery delivery platform with fresh, organic products.",
-    generator: 'v0.dev'
+  generator: 'v0.dev'
 }
 
 export default function RootLayout({
@@ -31,7 +31,3 @@ export default function RootLayout({
     </html>
   )
 }
-
-
-
-import './globals.css'

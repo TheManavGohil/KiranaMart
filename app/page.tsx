@@ -295,7 +295,7 @@ export default function Home() {
               </div>
               <p className="text-gray-600 dark:text-gray-300">
                 "The organic selection is impressive and the prices are reasonable. I've switched all my grocery
-                shopping to KirnaMart!"
+                shopping to KiranaMart!"
               </p>
             </div>
 

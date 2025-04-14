@@ -10,7 +10,7 @@ cloudinary.config({
   api_key: process.env.CLOUDINARY_API_KEY,
   api_secret: process.env.CLOUDINARY_API_SECRET,
   secure: true, // Use https
-});
+})
 
 interface UploadRequestBody {
     imageData: string; // Expecting base64 data URL string
@@ -59,7 +59,7 @@ export async function POST(request: NextRequest) {
                 { width: 200, height: 200, crop: "fill", gravity: "face" },
             ]
             // Add more options like resource_type: 'image' if needed
-        });
+        })
         console.log(`Cloudinary upload successful: ${uploadResult.secure_url}`);
 
         const avatarUrl = uploadResult.secure_url;
@@ -69,7 +69,7 @@ export async function POST(request: NextRequest) {
         const updateResult = await db.collection(COLLECTIONS.VENDORS).updateOne(
             { _id: vendorObjectId },
             { $set: { avatarUrl: avatarUrl, updatedAt: new Date() } }
-        );
+        )
 
         if (updateResult.matchedCount === 0) {
             // This shouldn't happen if authentication passed, but handle defensively
