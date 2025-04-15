@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyToken } from '@/lib/auth';
-import DeliveryModel from '@/models/Delivery'; // Import Mongoose model
+import DeliveryModel from '@/lib/models/Delivery'; // Changed from @/models/Delivery
 // import '@/models/DeliveryAgent'; // REMOVED: Import DeliveryAgent model - Causes error as file doesn't exist yet
 // import dbConnect from '@/lib/dbConnect'; // REMOVED: Connection handled by model import/usage
 import mongooseConnect from '@/lib/mongooseConnect'; // Import the connection helper

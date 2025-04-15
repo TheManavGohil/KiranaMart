@@ -1,117 +1,62 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyToken } from '@/lib/auth';
-import mongooseConnect from '@/lib/mongooseConnect'; // Import Mongoose connection utility
-import DeliveryAgentModel, { IDeliveryAgent } from '@/models/DeliveryAgent'; // Import Mongoose model
-import { Types } from 'mongoose'; // Import Types for ObjectId validation
-// Assume DeliveryAgent interface is defined in lib/db.ts or models.ts
-// If defined locally in lib/db.ts, we might need to redefine or import it carefully.
-// For simplicity, let's assume it's accessible or redefine relevant parts.
+import mongooseConnect from '@/lib/mongooseConnect';
+import {
+    createDeliveryAgent,
+    getDeliveryAgentsByVendor,
+    updateDeliveryAgent,
+    deleteDeliveryAgent,
+    getDeliveryAgentById
+} from '@/lib/db';
+import mongoose from 'mongoose';
 
-// Interface for the POST request body
-interface CreateAgentRequestBody {
-  name: string;
-  phone: string;
-  vehicleType: 'Bike' | 'Car' | 'Scooter' | 'Other';
-  isActive?: boolean;
-}
-
-// GET handler: Fetch all agents for the vendor using Mongoose
+// GET /api/vendor/delivery-agents - Fetch all agents for the logged-in vendor
 export async function GET(request: NextRequest) {
-  try {
-    await mongooseConnect(); // Ensure Mongoose connection
-
-    const authHeader = request.headers.get('Authorization');
-    if (!authHeader?.startsWith('Bearer ')) {
-      return NextResponse.json({ message: 'Authentication required' }, { status: 401 });
-    }
-    const token = authHeader.split(' ')[1];
-    const payload = verifyToken(token);
-
-    if (!payload?._id || !Types.ObjectId.isValid(payload._id)) {
-      return NextResponse.json({ message: 'Authentication failed: Invalid token or vendor ID' }, { status: 401 });
-    }
-    if (payload.role !== 'vendor') {
-      return NextResponse.json({ message: 'Forbidden: Access restricted to vendors' }, { status: 403 });
+    await mongooseConnect();
+    const tokenPayload = verifyToken(request.cookies.get('token')?.value);
+    if (!tokenPayload || tokenPayload.role !== 'vendor') {
+        return NextResponse.json({ message: 'Unauthorized or Invalid Role' }, { status: 401 });
     }
 
-    const vendorId = payload._id;
-
-    // Use Mongoose model to find agents
-    const agents = await DeliveryAgentModel.find({ vendorId: new Types.ObjectId(vendorId) }).lean(); // Use .lean() for plain JS objects
-
-    // Mongoose documents (even with .lean()) might still need ObjectId conversion for frontend if not handled there
-    // const formattedAgents = agents.map(agent => ({
-    //     ...agent,
-    //     _id: agent._id.toString(),
-    //     vendorId: agent.vendorId.toString()
-    // }));
-    // Returning lean objects might be sufficient
-
-    return NextResponse.json(agents, { status: 200 });
-
-  } catch (error: any) {
-    console.error('Error fetching delivery agents:', error);
-     // Handle potential Mongoose CastError for invalid IDs if needed, though payload._id is checked
-     if (error.name === 'CastError') {
-       return NextResponse.json({ message: 'Invalid ID format' }, { status: 400 });
-     }
-    return NextResponse.json({ message: 'Internal server error', error: error.message }, { status: 500 });
-  }
+    try {
+        const agents = await getDeliveryAgentsByVendor(tokenPayload._id);
+        return NextResponse.json(agents);
+    } catch (error) {
+        console.error("Error fetching delivery agents:", error);
+        return NextResponse.json({ message: 'Failed to fetch delivery agents', error: (error as Error).message }, { status: 500 });
+    }
 }
 
-// POST handler: Create a new delivery agent using Mongoose
+// POST /api/vendor/delivery-agents - Create a new agent for the logged-in vendor
 export async function POST(request: NextRequest) {
-  try {
-    await mongooseConnect(); // Ensure Mongoose connection
-
-    const authHeader = request.headers.get('Authorization');
-    if (!authHeader?.startsWith('Bearer ')) {
-      return NextResponse.json({ message: 'Authentication required' }, { status: 401 });
-    }
-    const token = authHeader.split(' ')[1];
-    const payload = verifyToken(token);
-
-     if (!payload?._id || !Types.ObjectId.isValid(payload._id)) {
-      return NextResponse.json({ message: 'Authentication failed: Invalid token or vendor ID' }, { status: 401 });
-    }
-    if (payload.role !== 'vendor') {
-      return NextResponse.json({ message: 'Forbidden: Access restricted to vendors' }, { status: 403 });
+    await mongooseConnect();
+    const tokenPayload = verifyToken(request.cookies.get('token')?.value);
+    if (!tokenPayload || tokenPayload.role !== 'vendor') {
+        return NextResponse.json({ message: 'Unauthorized or Invalid Role' }, { status: 401 });
     }
 
-    const vendorId = payload._id;
-    const body: CreateAgentRequestBody = await request.json();
+    try {
+        const body = await request.json();
+        // Validate required fields (name, phone)
+        if (!body.name || !body.phone) {
+            return NextResponse.json({ message: 'Missing required fields: name and phone' }, { status: 400 });
+        }
 
-    // Basic validation
-    if (!body.name || !body.phone || !body.vehicleType) {
-      return NextResponse.json({ message: 'Missing required fields (name, phone, vehicleType)' }, { status: 400 });
+        // Normalize vehicleType to lowercase if provided
+        if (body.vehicleType && typeof body.vehicleType === 'string') {
+            body.vehicleType = body.vehicleType.toLowerCase();
+        }
+
+        // Ensure vendorId is set correctly
+        const agentData = { ...body, vendorId: tokenPayload._id }; 
+
+        const newAgent = await createDeliveryAgent(agentData);
+        return NextResponse.json(newAgent, { status: 201 });
+    } catch (error) {
+        console.error("Error creating delivery agent:", error);
+        return NextResponse.json({ message: 'Failed to create delivery agent', error: (error as Error).message }, { status: 500 });
     }
+}
 
-    const agentData = {
-      ...body,
-      vendorId: new Types.ObjectId(vendorId), // Ensure vendorId is ObjectId for Mongoose
-      isActive: body.isActive !== undefined ? body.isActive : true,
-    };
-
-    // Use Mongoose model to create the agent
-    const newAgent = await DeliveryAgentModel.create(agentData);
-
-    // Return the newly created agent's document (Mongoose handles _id)
-    return NextResponse.json({
-        message: 'Delivery agent created successfully',
-        // agentId: newAgent._id.toString(), // Redundant if sending whole agent back
-        agent: newAgent // Send back the created Mongoose document
-    }, { status: 201 });
-
-  } catch (error: any) {
-    console.error('Error creating delivery agent:', error);
-     if (error instanceof SyntaxError) { // Handle JSON parsing error
-       return NextResponse.json({ message: 'Invalid JSON in request body' }, { status: 400 });
-     }
-     // Handle Mongoose validation errors
-     if (error.name === 'ValidationError') {
-        const messages = Object.values(error.errors).map((err: any) => err.message);
-        return NextResponse.json({ message: 'Validation failed', errors: messages }, { status: 400 });
-     }
-    return NextResponse.json({ message: 'Internal server error', error: error.message }, { status: 500 });
-  }
-} 
+// Note: For PUT and DELETE on specific agents, you'd typically use a dynamic route like
+// /api/vendor/delivery-agents/[agentId]/route.ts 

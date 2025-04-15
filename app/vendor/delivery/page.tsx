@@ -165,38 +165,66 @@ export default function VendorDeliveryPage() {
   const [selectedDeliveryForAgent, setSelectedDeliveryForAgent] = useState<Delivery | null>(null)
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null)
 
-  // --- Data Fetching (Conditional) ---
+  // --- Data Fetching ---
   const fetchDeliveriesAndAgents = async () => {
-    if (showSampleData) return; // Don't fetch if showing sample data
-
+    if (showSampleData) {
+        // Keep sample data logic if needed
+        setDeliveries(MOCK_DELIVERIES); 
+        setAvailableAgents(MOCK_AVAILABLE_AGENTS);
+        setIsLoading(false);
+        return;
+    }
     setIsLoading(true)
     setError(null)
-    setHasFetchedLiveData(true); // Mark that we attempted a fetch
     try {
-      const [fetchedDeliveries, fetchedAgents] = await Promise.all([
-        apiCall<Delivery[]>('/api/vendor/deliveries'),
-        apiCall<AvailableAgent[]>('/api/vendor/delivery-agents')
-      ])
-      setDeliveries(fetchedDeliveries || [])
-      setAvailableAgents(fetchedAgents || [])
+      // Fetch both deliveries and available agents in parallel
+      const [deliveriesData, agentsData] = await Promise.all([
+          apiCall<any[]>('/api/vendor/deliveries'), // Type any[] for now, adjust based on API response shape
+          apiCall<AvailableAgent[]>('/api/vendor/delivery-agents') // Fetch agents from the new endpoint
+      ]);
+      
+      // Process deliveries: Agent info is now populated under deliveryAgentId
+      const processedDeliveries = deliveriesData.map(d => ({
+          ...d,
+          _id: d._id.toString(),
+          deliveryId: d.deliveryId || `del-${d._id.toString().slice(-5)}`,
+          orderId: d.orderId?._id?.toString() || d.orderId?.toString() || 'N/A', // Handle populated/unpopulated orderId
+          customer: {
+              name: d.customerId?.name || 'N/A', // Handle populated customer
+              address: `${d.customerAddress?.street || ''}, ${d.customerAddress?.city || ''}, ${d.customerAddress?.postalCode || ''}`.trim() || 'No Address',
+              phone: d.customerId?.phone || d.customerPhone || undefined
+          },
+          // Access populated agent details via deliveryAgentId
+          agent: d.deliveryAgentId ? {
+              id: d.deliveryAgentId._id.toString(),
+              name: d.deliveryAgentId.name,
+              phone: d.deliveryAgentId.phone,
+              vehicle: d.deliveryAgentId.vehicleType, // Map vehicleType if needed
+          } : null,
+          lastUpdate: new Date(d.updatedAt).toLocaleString(),
+          estimatedDelivery: d.estimatedDeliveryTime ? new Date(d.estimatedDeliveryTime).toLocaleString() : 'N/A',
+          actualDelivery: d.actualDeliveryTime ? new Date(d.actualDeliveryTime).toLocaleString() : undefined,
+          // Keep other fields like location, orderValue, packageSize if they exist
+          location: d.currentLocation,
+          orderValue: d.orderValue,
+          packageSize: d.packageSize
+      }));
+
+      setDeliveries(processedDeliveries as Delivery[]); // Assert type after processing
+      setAvailableAgents(agentsData || []);
+
     } catch (err: any) {
-      console.error("Error fetching data:", err)
-      const errorMsg = err.message || "Failed to load delivery data"
-      setError(errorMsg)
-      toast.error(`Error: ${errorMsg}`)
-      setDeliveries([]) // Clear data on error
-      setAvailableAgents([])
+      console.error("API Error:", err)
+      setError(err.message || 'Failed to fetch data')
     } finally {
       setIsLoading(false)
     }
   }
 
-  // Fetch live data initially or when switching back from sample data
+  // --- Effects ---
   useEffect(() => {
-    if (!showSampleData && !hasFetchedLiveData) {
-       fetchDeliveriesAndAgents();
-    }
-  }, [showSampleData, hasFetchedLiveData]); // Rerun when toggling sample/live
+    fetchDeliveriesAndAgents() // Fetch data on initial load or when switching view
+  }, [showSampleData])
 
   // Toggle Button Handler
   const handleToggleDataView = () => {
@@ -273,28 +301,24 @@ export default function VendorDeliveryPage() {
     }
   }
 
-  // --- API Call Handlers (Modified for Sample Data) ---
+  // --- API Call Handlers ---
   const handleUpdateStatus = async (deliveryId: string, newStatus: Delivery['status']) => {
     if (showSampleData) {
         toast.info("Viewing sample data. Status not updated on server.");
-        // Optional: Update mock data visually (requires state management for mock data)
-        // For now, we just show the info message.
         return;
     }
-
-    setIsUpdatingStatus(deliveryId)
+    setIsUpdatingStatus(deliveryId);
     try {
-      await apiCall(`/api/vendor/deliveries/${deliveryId}/status`, {
-        method: 'PUT',
-        body: JSON.stringify({ newStatus }),
-      })
-      // Update live data state
-      setDeliveries(prev => prev.map(d => d._id === deliveryId ? { ...d, status: newStatus, lastUpdate: new Date().toLocaleString() } : d))
-      toast.success(`Delivery ${deliveryId.slice(-5)} status updated to ${newStatus}`)
+        await apiCall(`/api/vendor/deliveries/${deliveryId}/status`, {
+            method: 'PUT',
+            body: JSON.stringify({ newStatus }),
+        });
+        toast.success(`Delivery status updated to ${newStatus}`);
+        fetchDeliveriesAndAgents(); // Refetch to show updated data and agent assignment status
     } catch (err: any) {
-      toast.error(`Failed to update status: ${err.message}`)
+        toast.error(`Failed to update status: ${err.message}`);
     } finally {
-      setIsUpdatingStatus(null)
+        setIsUpdatingStatus(null);
     }
   }
 
@@ -303,23 +327,25 @@ export default function VendorDeliveryPage() {
     const deliveryId = selectedDeliveryForAgent._id;
 
     if (showSampleData) {
-        toast.info("Viewing sample data. Agent assignment not saved to server.");
-        setSelectedDeliveryForAgent(null); // Close dialog
+        toast.info("Viewing sample data. Agent assignment not saved.");
+        // Add logic to update mock data visually here if desired
+        setSelectedDeliveryForAgent(null);
         setSelectedAgentId(null);
-        // Optional: Update mock data visually
         return;
     }
 
-    if (selectedAgentId === undefined) { // Check specifically for undefined after sample data check
-       toast.warning("No agent selected.");
+    // selectedAgentId should be the ID string or null for unassigning
+    if (selectedAgentId === undefined) { 
+       toast.warning("No agent selected or action chosen.");
        return;
     }
 
     setIsAssigningAgent(deliveryId)
     try {
+      // Pass the agentId (string or null) to the backend
       await apiCall(`/api/vendor/deliveries/${deliveryId}/assign`, {
         method: 'PUT',
-        body: JSON.stringify({ agentId: selectedAgentId }),
+        body: JSON.stringify({ agentId: selectedAgentId }), // Pass the ID
       })
       toast.success(`Agent ${selectedAgentId ? 'assigned' : 'unassigned'} successfully!`)
       fetchDeliveriesAndAgents() // Refetch live data

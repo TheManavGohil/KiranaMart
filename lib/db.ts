@@ -1,776 +1,581 @@
-import clientPromise from "./mongodb"
-// import type { Product, Order, User, Vendor } from "./models" // REMOVE problematic import
-import { ObjectId } from "mongodb"
+import mongooseConnect from './mongooseConnect';
+import Product from './models/Product';
+import Order from './models/Order';
+import User from './models/User';
+import Vendor from './models/Vendor';
+import Delivery from './models/Delivery';
+import DeliveryAgent from './models/DeliveryAgent';
+import mongoose from 'mongoose'; // Needed for ObjectId checks if required
 
-// Import DB_NAME and COLLECTIONS from where they are defined
-import { DB_NAME, COLLECTIONS, getDb } from "./mongodb"; // Adjusted import
+// --- Database Functions (Refactored for Mongoose) --- 
 
-// --- Interface Definitions --- 
-
-// Define Product interface locally
-export interface Product {
-  _id?: ObjectId | string; 
-  name: string;
-  description: string;
-  price: number;
-  unit: string; 
-  category: string; 
-  vendorId: ObjectId | string;
-  stock: number;
-  imageUrl?: string;
-  isAvailable: boolean;
-  tags?: string[];
-  createdAt?: Date;
-  updatedAt?: Date;
-}
-
-// Define Order interface locally
-export interface Order {
-  _id?: ObjectId | string;
-  userId: ObjectId | string; 
-  vendorId: ObjectId | string;
-  items: Array<{ productId: ObjectId | string; name: string; quantity: number; price: number }>;
-  totalAmount: number;
-  status: 'Pending' | 'Processing' | 'Shipped' | 'Delivered' | 'Cancelled';
-  shippingAddress: { street: string; city: string; state: string; postalCode: string; country: string };
-  paymentMethod: string;
-  paymentStatus: 'Pending' | 'Paid' | 'Failed';
-  createdAt?: Date;
-  updatedAt?: Date;
-}
-
-// Define User interface locally
-export interface User {
-  _id?: ObjectId | string;
-  name: string;
-  email: string;
-  // password hash should NOT typically be in the main user object returned to client
-  // Add other fields like phone, etc. if needed
-  addresses: Array<{ street: string; city: string; state: string; postalCode: string; country: string }>;
-  cart: Array<{ productId: string; quantity: number }>; // Define cart structure
-  orderHistory: Array<ObjectId | string>; // Array of Order IDs
-  createdAt?: Date;
-  updatedAt?: Date;
-}
-
-// Define Vendor interface locally
-export interface Vendor {
-  _id?: ObjectId | string;
-  businessName: string;
-  email: string;
-  phone: string;
-  address: { street: string; city: string; state: string; postalCode: string; country: string };
-  description?: string;
-  logoUrl?: string;
-  // products field might be redundant if using vendorId in Product collection
-  createdAt?: Date;
-  updatedAt?: Date;
-}
-
-// Interface for Delivery data (keep existing)
-interface Delivery {
-  _id?: ObjectId | string;
-  deliveryId?: string; 
-  orderId: ObjectId | string;
-  vendorId: ObjectId | string;
-  customerId: ObjectId | string; 
-  customerName: string; 
-  customerAddress: { 
-    street: string;
-    city: string;
-    postalCode: string;
-    // other fields
-  };
-  customerPhone?: string; 
-  assignedAgentId?: ObjectId | string | null; 
-  status: 'Pending Assignment' | 'Assigned' | 'Out for Delivery' | 'Delivered' | 'Attempted Delivery' | 'Cancelled' | 'Delayed'; 
-  estimatedDeliveryTime?: Date | null;
-  actualDeliveryTime?: Date | null;
-  lastLocationUpdate?: Date | null;
-  currentLocation?: { lat: number; lon: number } | null;
-  deliveryNotes?: string;
-  orderValue?: number;
-  packageSize?: 'Small' | 'Medium' | 'Large';
-  createdAt?: Date;
-  updatedAt?: Date;
-}
-
-// DeliveryAgent interface (keep existing)
-export interface DeliveryAgent {
-  _id?: ObjectId | string;
-  vendorId: ObjectId | string;
-  name: string;
-  phone: string;
-  vehicleType: 'bike' | 'scooter' | 'car' | 'van';
-  isActive: boolean;
-  createdAt?: Date;
-  updatedAt?: Date;
-}
-
-// --- Database Functions --- 
-
-// Products - Example with explicit generic type
+// --- Product Functions ---
 export async function getProducts(limit = 20, skip = 0, category?: string) {
-  const db = await getDb()
-  const query: any = category ? { category } : {}
-  // Use the defined Product interface
-  return db.collection<Product>(COLLECTIONS.PRODUCTS).find(query).skip(skip).limit(limit).toArray()
-}
-
-export async function getProductById(id: string) {
-  const db = await getDb()
-  return db.collection(COLLECTIONS.PRODUCTS).findOne({ _id: new ObjectId(id) })
-}
-
-export async function getProductsByVendor(vendorId: string) {
-  const db = await getDb()
-  // Assuming vendorId in PRODUCTS collection is stored as ObjectId if it comes from VENDORS _id
-  // If vendorId is stored as a string matching vendor._id.toString(), adjust query
+  await mongooseConnect();
+  const query = category ? { category } : {};
   try {
-    const vendorObjectId = new ObjectId(vendorId);
-    return db.collection<Product>(COLLECTIONS.PRODUCTS).find({ vendorId: vendorObjectId as any }).toArray(); // Cast needed if Product interface expects ObjectId
-  } catch (e) {
-    console.error("Invalid vendorId format for ObjectId:", vendorId, e);
-    // Fallback or alternative query if vendorId is stored as string:
-    // return db.collection<Product>(COLLECTIONS.PRODUCTS).find({ vendorId: vendorId }).toArray();
-    return []; // Return empty array if ID is invalid and no fallback
+    return await Product.find(query).skip(skip).limit(limit).lean(); // Use .lean() for plain JS objects
+  } catch (error) {
+    console.error("Error fetching products:", error);
+    return [];
   }
 }
 
-export async function createProduct(product: Product) {
-  const db = await getDb()
-  const { _id, ...productData } = product
-  const result = await db.collection(COLLECTIONS.PRODUCTS).insertOne({
-    ...productData,
-    // Ensure vendorId is stored correctly (ObjectId or string based on schema)
-    vendorId: new ObjectId(productData.vendorId), // Convert to ObjectId if needed
-    createdAt: new Date(),
-    updatedAt: new Date(), // Add updatedAt on creation
-  })
-
-  return result
+export async function getProductById(id: string) {
+  await mongooseConnect();
+  try {
+    if (!mongoose.Types.ObjectId.isValid(id)) return null;
+    return await Product.findById(id).lean();
+  } catch (error) {
+    console.error("Error fetching product by ID:", error);
+    return null;
+  }
 }
 
-export async function updateProduct(id: string, updates: Partial<Product>) {
-  const db = await getDb()
-  // Ensure vendorId isn't accidentally updated if passed
-  if (updates.vendorId) delete updates.vendorId;
-  const result = await db.collection(COLLECTIONS.PRODUCTS).updateOne(
-    { _id: new ObjectId(id) }, 
-    { 
-      $set: {
-        ...updates, 
-        updatedAt: new Date()
-      } 
-    }
-  )
+export async function getProductsByVendor(vendorId: string) {
+  await mongooseConnect();
+  try {
+    if (!mongoose.Types.ObjectId.isValid(vendorId)) return [];
+    return await Product.find({ vendorId }).lean();
+  } catch (error) {
+    console.error("Error fetching products by vendor:", error);
+    return [];
+  }
+}
 
-  return result
+export async function createProduct(productData: any) { // Use 'any' for now, or import/create a suitable type
+  await mongooseConnect();
+  try {
+    const newProduct = new Product(productData);
+    await newProduct.save();
+    return JSON.parse(JSON.stringify(newProduct)); // Return plain object
+  } catch (error) {
+    console.error("Error creating product:", error);
+    throw new Error("Failed to create product"); // Re-throw or handle appropriately
+  }
+}
+
+export async function updateProduct(id: string, updates: any) {
+  await mongooseConnect();
+  try {
+    if (!mongoose.Types.ObjectId.isValid(id)) throw new Error("Invalid product ID");
+    // Ensure vendorId isn't accidentally updated if passed
+    if (updates.vendorId) delete updates.vendorId;
+    // Ensure createdAt isn't updated
+    if (updates.createdAt) delete updates.createdAt;
+    
+    const updatedProduct = await Product.findByIdAndUpdate(id, updates, { new: true }).lean();
+    return updatedProduct;
+  } catch (error) {
+    console.error("Error updating product:", error);
+    throw new Error("Failed to update product");
+  }
 }
 
 export async function deleteProduct(id: string) {
-  const db = await getDb()
-  return db.collection(COLLECTIONS.PRODUCTS).deleteOne({ _id: new ObjectId(id) })
+  await mongooseConnect();
+  try {
+    if (!mongoose.Types.ObjectId.isValid(id)) throw new Error("Invalid product ID");
+    await Product.findByIdAndDelete(id);
+    return { deletedCount: 1 }; // Mimic native driver result structure if needed
+  } catch (error) {
+    console.error("Error deleting product:", error);
+    throw new Error("Failed to delete product");
+  }
 }
 
-// Orders - Example with explicit generic type
+// --- Order Functions ---
 export async function getOrders(limit = 20, skip = 0) {
-  const db = await getDb()
-  // Use the defined Order interface
-  return db.collection<Order>(COLLECTIONS.ORDERS).find({}).skip(skip).limit(limit).sort({ createdAt: -1 }).toArray()
+  await mongooseConnect();
+  try {
+    return await Order.find({}).skip(skip).limit(limit).sort({ createdAt: -1 }).populate('items.productId', 'name imageUrl').lean();
+  } catch (error) {
+    console.error("Error fetching orders:", error);
+    return [];
+  }
 }
 
 export async function getOrderById(id: string) {
-  const db = await getDb()
-  return db.collection(COLLECTIONS.ORDERS).findOne({ _id: new ObjectId(id) })
+  await mongooseConnect();
+  try {
+    if (!mongoose.Types.ObjectId.isValid(id)) return null;
+    // Populate related fields as needed
+    return await Order.findById(id).populate('customerId', 'name email').populate('vendorId', 'businessName').populate('items.productId').lean();
+  } catch (error) {
+    console.error("Error fetching order by ID:", error);
+    return null;
+  }
 }
 
 export async function getOrdersByUser(userId: string) {
-  const db = await getDb()
+  await mongooseConnect();
   try {
-    const userObjectId = new ObjectId(userId);
-    return db.collection<Order>(COLLECTIONS.ORDERS).find({ userId: userObjectId as any }).sort({ createdAt: -1 }).toArray()
-  } catch (e) {
-    console.error("Invalid userId format for ObjectId:", userId, e);
+    if (!mongoose.Types.ObjectId.isValid(userId)) return [];
+    return await Order.find({ customerId: userId }).sort({ createdAt: -1 }).populate('items.productId', 'name imageUrl').populate('vendorId', 'businessName').lean();
+  } catch (error) {
+    console.error("Error fetching orders by user:", error);
     return [];
   }
 }
 
 export async function getOrdersByVendor(vendorId: string) {
-  const db = await getDb()
+  await mongooseConnect();
   try {
-    const vendorObjectId = new ObjectId(vendorId);
-    return db.collection<Order>(COLLECTIONS.ORDERS).find({ vendorId: vendorObjectId as any }).sort({ createdAt: -1 }).toArray()
-  } catch (e) {
-     console.error("Invalid vendorId format for ObjectId:", vendorId, e);
+    if (!mongoose.Types.ObjectId.isValid(vendorId)) return [];
+    return await Order.find({ vendorId }).sort({ createdAt: -1 }).populate('customerId', 'name email').populate('items.productId', 'name imageUrl').lean();
+  } catch (error) {
+    console.error("Error fetching orders by vendor:", error);
     return [];
   }
 }
 
-export async function createOrder(order: Order) {
-  const db = await getDb()
-  const now = new Date()
-  const { _id, ...orderData } = order
-  const result = await db.collection(COLLECTIONS.ORDERS).insertOne({
-    ...orderData,
-    // Ensure IDs are ObjectIds if needed by schema
-    userId: new ObjectId(orderData.userId),
-    vendorId: new ObjectId(orderData.vendorId),
-    status: "Pending",
-    createdAt: now,
-    updatedAt: now,
-  })
-
-  return result
-}
-
-export async function updateOrderStatus(
-  id: string,
-  status: Order["status"],
-  vendorId: string // Keep vendorId for authorization check
-) {
-  const db = await getDb()
+export async function createOrder(orderData: any) {
+  await mongooseConnect();
   try {
-    const orderObjectId = new ObjectId(id);
-    const vendorObjectId = new ObjectId(vendorId);
-
-    const result = await db.collection<Order>(COLLECTIONS.ORDERS).updateOne(
-      {
-        _id: orderObjectId, // Use ObjectId directly in filter
-        vendorId: vendorObjectId // Use ObjectId directly
-      },
-      {
-        $set: {
-          status,
-          updatedAt: new Date(),
-        },
-      },
-    )
-    return result;
-  } catch(e) {
-    console.error("Error updating order status:", e);
-    return { acknowledged: false, matchedCount: 0, modifiedCount: 0, upsertedCount: 0, upsertedId: null };
+    // Add validation or default setting if needed
+    if (!orderData.status) orderData.status = 'Pending';
+    const newOrder = new Order(orderData);
+    await newOrder.save();
+    // Optionally populate fields before returning
+    return JSON.parse(JSON.stringify(newOrder));
+  } catch (error) {
+    console.error("Error creating order:", error);
+    throw new Error("Failed to create order");
   }
 }
 
-// Users - Example with explicit generic type
-export async function getUserById(id: string) {
-  const db = await getDb()
+export async function updateOrderStatus(id: string, status: string, vendorId: string) {
+  await mongooseConnect();
   try {
-      // Use the defined User interface
-      return db.collection<User>(COLLECTIONS.USERS).findOne({ _id: new ObjectId(id) });
-  } catch (e) {
-      console.error("Invalid id format for ObjectId:", id, e);
-      return null;
+    if (!mongoose.Types.ObjectId.isValid(id) || !mongoose.Types.ObjectId.isValid(vendorId)) {
+      throw new Error("Invalid ID format");
+    }
+    const updatedOrder = await Order.findOneAndUpdate(
+      { _id: id, vendorId: vendorId }, // Ensure vendor owns the order
+      { $set: { status } },
+      { new: true }
+    ).lean();
+    
+    if (!updatedOrder) {
+        console.log(`Order ${id} not found or vendor ${vendorId} mismatch.`);
+        // Depending on expected return type, return null or a specific structure
+        return { acknowledged: true, matchedCount: 0, modifiedCount: 0 }; 
+    }
+    // Mimic native driver result if necessary, or just return the updated doc
+    return { acknowledged: true, matchedCount: 1, modifiedCount: 1, upsertedId: null }; 
+  } catch (error) {
+    console.error("Error updating order status:", error);
+    throw new Error("Failed to update order status");
+  }
+}
+
+// --- User Functions ---
+export async function getUserById(id: string) {
+  await mongooseConnect();
+  try {
+    if (!mongoose.Types.ObjectId.isValid(id)) return null;
+    // Exclude password if it exists in the schema
+    return await User.findById(id).select('-password').lean(); 
+  } catch (error) {
+    console.error("Error fetching user by ID:", error);
+    return null;
   }
 }
 
 export async function getUserByEmail(email: string) {
-  const db = await getDb()
-  return db.collection<User>(COLLECTIONS.USERS).findOne({ email })
-}
-
-export async function createUser(user: User) {
-  const db = await getDb()
-  const { _id, ...userData } = user
-  // Ensure required fields for your User model are present before insertion
-  const result = await db.collection(COLLECTIONS.USERS).insertOne({
-    ...userData,
-    // Assuming email is required and unique (add index in MongoDB)
-    // Assuming default empty arrays for addresses/history if applicable
-    addresses: [],
-    orderHistory: [],
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  })
-
-  return result
-}
-
-export async function updateUser(id: string, updates: Partial<User>) {
-  const db = await getDb()
-  // Prevent changing email this way if it's used for login
-  if (updates.email) delete updates.email;
-  // REMOVE password check/delete
-  // if (updates.password) delete updates.password; 
+  await mongooseConnect();
   try {
-    const result = await db.collection<User>(COLLECTIONS.USERS).updateOne(
-        { _id: new ObjectId(id) }, 
-        { 
-          $set: { ...updates, updatedAt: new Date() } 
-        }
-    );
-    return result;
-  } catch (e) {
-    console.error("Error updating user:", e);
-    return { acknowledged: false, matchedCount: 0, modifiedCount: 0, upsertedCount: 0, upsertedId: null };
+    return await User.findOne({ email }).select('-password').lean();
+  } catch (error) {
+    console.error("Error fetching user by email:", error);
+    return null;
   }
 }
 
-// Vendors - Example with explicit generic type
-export async function getVendorById(id: string) {
-  const db = await getDb()
+export async function createUser(userData: any) {
+  await mongooseConnect();
   try {
-    // Use the defined Vendor interface
-    return db.collection<Vendor>(COLLECTIONS.VENDORS).findOne({ _id: new ObjectId(id) });
-  } catch (e) {
-    console.error("Invalid id format for ObjectId:", id, e);
+    // Add hashing for password here if implementing authentication
+    const newUser = new User(userData);
+    await newUser.save();
+    const userObject = JSON.parse(JSON.stringify(newUser));
+    // delete userObject.password; // Ensure password isn't returned
+    return userObject;
+  } catch (error) {
+    console.error("Error creating user:", error);
+    // Handle duplicate email error (code 11000)
+    if ((error as any).code === 11000) {
+      throw new Error("Email already exists");
+    }
+    throw new Error("Failed to create user");
+  }
+}
+
+export async function updateUser(id: string, updates: any) {
+  await mongooseConnect();
+  try {
+    if (!mongoose.Types.ObjectId.isValid(id)) throw new Error("Invalid user ID");
+    // Prevent changing critical fields like email or password directly here
+    if (updates.email) delete updates.email;
+    // if (updates.password) delete updates.password; // Handle password changes separately
+    if (updates.createdAt) delete updates.createdAt; 
+
+    const updatedUser = await User.findByIdAndUpdate(id, { $set: updates }, { new: true }).select('-password').lean();
+    return updatedUser;
+  } catch (error) {
+    console.error("Error updating user:", error);
+    throw new Error("Failed to update user");
+  }
+}
+
+// --- Vendor Functions ---
+export async function getVendorById(id: string) {
+  await mongooseConnect();
+  try {
+    if (!mongoose.Types.ObjectId.isValid(id)) return null;
+    return await Vendor.findById(id).lean();
+  } catch (error) {
+    console.error("Error fetching vendor by ID:", error);
     return null;
   }
 }
 
 export async function getVendorByEmail(email: string) {
-  const db = await getDb()
-  return db.collection<Vendor>(COLLECTIONS.VENDORS).findOne({ email })
-}
-
-export async function createVendor(vendor: Vendor) {
-  const db = await getDb()
-  const { _id, ...vendorData } = vendor
-  // Ensure required fields for Vendor are present
-  const result = await db.collection(COLLECTIONS.VENDORS).insertOne({
-    ...vendorData,
-    products: [], // Assuming products is an array of ObjectIds or embedded docs
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  })
-
-  return result
-}
-
-export async function updateVendor(id: string, updates: Partial<Vendor>) {
-  const db = await getDb()
-  // Prevent changing email if used for login
-  if (updates.email) delete updates.email;
+  await mongooseConnect();
   try {
-    const result = await db.collection(COLLECTIONS.VENDORS).updateOne(
-        { _id: new ObjectId(id) }, 
-        { 
-          $set: { ...updates, updatedAt: new Date() } 
-        }
-    );
-    return result;
-  } catch(e) {
-    console.error("Error updating vendor:", e);
-    return { acknowledged: false, matchedCount: 0, modifiedCount: 0, upsertedCount: 0, upsertedId: null };
+    return await Vendor.findOne({ email }).lean();
+  } catch (error) {
+    console.error("Error fetching vendor by email:", error);
+    return null;
   }
 }
 
-// Cart operations 
-export async function getCart(userId: string) {
-  const db = await getDb()
+export async function createVendor(vendorData: any) {
+  await mongooseConnect();
   try {
-    const userObjectId = new ObjectId(userId);
-    // Use defined User interface
-    const user = await db.collection<User>(COLLECTIONS.USERS).findOne(
-        { _id: userObjectId }, 
-        { projection: { cart: 1, _id: 0 } } // Only fetch the cart
-    );
-    // Type assertion might be needed if projection makes TS unsure
-    return (user as unknown as Pick<User, 'cart'>)?.cart || []; 
-  } catch (e) {
-    console.error("Error getting cart:", e);
+    const newVendor = new Vendor(vendorData);
+    await newVendor.save();
+    return JSON.parse(JSON.stringify(newVendor));
+  } catch (error) {
+    console.error("Error creating vendor:", error);
+    if ((error as any).code === 11000) {
+      throw new Error("Vendor email already exists");
+    }
+    throw new Error("Failed to create vendor");
+  }
+}
+
+export async function updateVendor(id: string, updates: any) {
+  await mongooseConnect();
+  try {
+    if (!mongoose.Types.ObjectId.isValid(id)) throw new Error("Invalid vendor ID");
+    if (updates.email) delete updates.email; // Prevent email change this way
+    if (updates.createdAt) delete updates.createdAt;
+
+    const updatedVendor = await Vendor.findByIdAndUpdate(id, { $set: updates }, { new: true }).lean();
+    return updatedVendor;
+  } catch (error) {
+    console.error("Error updating vendor:", error);
+    throw new Error("Failed to update vendor");
+  }
+}
+
+// --- Cart Functions ---
+export async function getCart(userId: string) {
+  await mongooseConnect();
+  try {
+    if (!mongoose.Types.ObjectId.isValid(userId)) return [];
+    // Fetch the user, select the cart, and populate product details within the cart
+    const user = await User.findById(userId)
+                           .select('cart')
+                           .populate('cart.productId', 'name price imageUrl') // Populate product details
+                           .lean(); 
+
+    // Type assertion: Tell TypeScript that user (if found) should have a cart property matching the expected structure
+    type CartItem = { productId: { _id: mongoose.Types.ObjectId; name: string; price: number; imageUrl?: string }; quantity: number };
+    return (user as { cart: CartItem[] } | null)?.cart || [];
+
+  } catch (error) {
+    console.error("Error getting cart:", error);
     return [];
   }
 }
 
-export async function addToCart(userId: string, product: { productId: string; quantity: number }) {
-  const db = await getDb()
-  // Optional: Check if product exists and stock is available before adding
+export async function addToCart(userId: string, productInfo: { productId: string; quantity: number }) {
+  await mongooseConnect();
   try {
-    const userObjectId = new ObjectId(userId);
-    // Check if item already in cart to update quantity instead of pushing duplicates
-    const user = await db.collection<User>(COLLECTIONS.USERS).findOne({ _id: userObjectId, 'cart.productId': product.productId });
+    if (!mongoose.Types.ObjectId.isValid(userId) || !mongoose.Types.ObjectId.isValid(productInfo.productId)) {
+      throw new Error("Invalid ID format");
+    }
+    const user = await User.findById(userId);
+    if (!user) throw new Error("User not found");
 
-    if (user) {
+    // Explicitly type the item in the callback
+    const itemIndex = user.cart.findIndex((item: { productId: mongoose.Types.ObjectId; quantity: number }) => 
+        item.productId.toString() === productInfo.productId
+    );
+
+    if (itemIndex > -1) {
       // Update quantity
-      const result = await db.collection<User>(COLLECTIONS.USERS).updateOne(
-        { _id: userObjectId, 'cart.productId': product.productId },
-        { $inc: { 'cart.$.quantity': product.quantity } } // Increment quantity
-      );
-      return result;
+      user.cart[itemIndex].quantity += productInfo.quantity;
     } else {
       // Add new item
-      const result = await db.collection<User>(COLLECTIONS.USERS).updateOne(
-        { _id: userObjectId }, 
-        { $push: { cart: product as any } } // Cast needed if cart expects specific type
-      );
-      return result;
+      user.cart.push({ productId: productInfo.productId as any, quantity: productInfo.quantity });
     }
-  } catch (e) {
-    console.error("Error adding to cart:", e);
-    return { acknowledged: false, matchedCount: 0, modifiedCount: 0, upsertedCount: 0, upsertedId: null };
+    await user.save();
+    // Return updated cart or success status
+    return { success: true };
+  } catch (error) {
+    console.error("Error adding to cart:", error);
+    throw new Error("Failed to add item to cart");
   }
 }
 
 export async function updateCartItem(userId: string, productId: string, quantity: number) {
-  const db = await getDb()
-  if (quantity <= 0) {
-    return removeFromCart(userId, productId);
-  } else {
-    try {
-      const userObjectId = new ObjectId(userId);
-      // Assuming productId in cart is stored as string
-      const result = await db.collection<User>(COLLECTIONS.USERS).updateOne(
-        {
-          _id: userObjectId,
-          "cart.productId": productId, 
-        },
-        { $set: { "cart.$.quantity": quantity } }, 
-      )
-      return result;
-    } catch (e) {
-      console.error("Error updating cart item:", e);
-      return { acknowledged: false, matchedCount: 0, modifiedCount: 0, upsertedCount: 0, upsertedId: null };
+  await mongooseConnect();
+  try {
+    if (!mongoose.Types.ObjectId.isValid(userId) || !mongoose.Types.ObjectId.isValid(productId)) {
+      throw new Error("Invalid ID format");
     }
+    if (quantity <= 0) {
+        return removeFromCart(userId, productId); // Delegate to remove function if quantity is zero or less
+    }
+
+    const user = await User.findById(userId);
+    if (!user) throw new Error("User not found");
+
+    // Explicitly type the item in the callback
+    const itemIndex = user.cart.findIndex((item: { productId: mongoose.Types.ObjectId; quantity: number }) => 
+        item.productId.toString() === productId
+    );
+    if (itemIndex > -1) {
+      user.cart[itemIndex].quantity = quantity;
+      await user.save();
+      return { success: true };
+    } else {
+      throw new Error("Product not found in cart");
+    }
+  } catch (error) {
+    console.error("Error updating cart item:", error);
+    throw new Error("Failed to update cart item");
   }
 }
 
 export async function removeFromCart(userId: string, productId: string) {
-  const db = await getDb()
+  await mongooseConnect();
   try {
-    const userObjectId = new ObjectId(userId);
-    const result = await db
-      .collection<User>(COLLECTIONS.USERS)
-      .updateOne({ _id: userObjectId }, { $pull: { cart: { productId } as any } })
-    return result;
-  } catch (e) {
-    console.error("Error removing from cart:", e);
-    return { acknowledged: false, matchedCount: 0, modifiedCount: 0, upsertedCount: 0, upsertedId: null };
+    if (!mongoose.Types.ObjectId.isValid(userId) || !mongoose.Types.ObjectId.isValid(productId)) {
+      throw new Error("Invalid ID format");
+    }
+    await User.findByIdAndUpdate(userId, { $pull: { cart: { productId: productId } } });
+    return { success: true };
+  } catch (error) {
+    console.error("Error removing from cart:", error);
+    throw new Error("Failed to remove item from cart");
   }
 }
 
 export async function clearCart(userId: string) {
-  const db = await getDb()
+  await mongooseConnect();
   try {
-    const userObjectId = new ObjectId(userId);
-    const result = await db.collection<User>(COLLECTIONS.USERS).updateOne({ _id: userObjectId }, { $set: { cart: [] } })
-    return result;
-  } catch (e) {
-    console.error("Error clearing cart:", e);
-    return { acknowledged: false, matchedCount: 0, modifiedCount: 0, upsertedCount: 0, upsertedId: null };
+    if (!mongoose.Types.ObjectId.isValid(userId)) throw new Error("Invalid user ID");
+    await User.findByIdAndUpdate(userId, { $set: { cart: [] } });
+    return { success: true };
+  } catch (error) {
+    console.error("Error clearing cart:", error);
+    throw new Error("Failed to clear cart");
   }
 }
 
-// Seed dummy data for development
-// Consider moving this to a separate script or conditional execution
-export async function seedDummyData() {
-  const db = await getDb()
-
-  // Check if data already exists (example for products)
-  const productsCount = await db.collection(COLLECTIONS.PRODUCTS).countDocuments()
-  if (productsCount > 0) {
-    console.log('Dummy data already exists. Skipping seed.');
-    return;
-  }
-
-  console.log('Seeding dummy data...');
-
-  // Sample vendors
-  const vendors = [
-    {
-      businessName: "Fresh Farms Co.",
-      email: "contact@freshfarms.com",
-      address: { street: "123 Farm Road", city: "Green Valley", state: "CA", postalCode: "90210" }, // Make address structured
-      phone: "555-123-4567",
-      // products: [], // Products will be linked via vendorId
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    },
-    {
-      businessName: "Organic Harvest",
-      email: "info@organicharvest.com",
-      address: { street: "456 Garden Lane", city: "Oakville", state: "CA", postalCode: "90211" },
-      phone: "555-987-6543",
-      // products: [],
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    },
-  ]
-
-  const vendorResults = await db.collection(COLLECTIONS.VENDORS).insertMany(vendors as any);
-  const vendorIds = Object.values(vendorResults.insertedIds);
-  console.log(`Inserted ${vendorIds.length} vendors.`);
-
-  // Sample products (ensure they match the Product interface if defined locally)
-  const products = [
-    {
-      name: "Organic Bananas",
-      description: "Fresh organic bananas, perfect for smoothies or a quick snack.",
-      category: "Fruits",
-      price: 2.99,
-      unit: "lb",
-      stock: 100,
-      imageUrl:
-        "https://images.unsplash.com/photo-1603833665858-e61d17a86224?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=1374&q=80",
-      vendorId: vendorIds[0], // Use ObjectId directly
-      isAvailable: true,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    },
-    {
-      name: "Red Apples",
-      description: "Crisp and sweet red apples, locally sourced from organic farms.",
-      category: "Fruits",
-      price: 3.49,
-      unit: "lb",
-      stock: 75,
-      imageUrl:
-        "https://images.unsplash.com/photo-1570913149827-d2ac84ab3f9a?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=1470&q=80",
-      vendorId: vendorIds[0],
-      isAvailable: true,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    },
-     {
-      name: "Broccoli",
-      description: "Fresh green broccoli florets, rich in vitamins and minerals.",
-      category: "Vegetables",
-      price: 2.49,
-      unit: "head",
-      stock: 60,
-      imageUrl:
-        "https://images.unsplash.com/photo-1584270354949-c26b0d5b4a0c?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=1470&q=80",
-      vendorId: vendorIds[1],
-      isAvailable: true,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    },
-    // Add more sample products...
-  ]
-
-  const productResult = await db.collection(COLLECTIONS.PRODUCTS).insertMany(products as any);
-  console.log(`Inserted ${productResult.insertedCount} products.`);
-
-  // Sample users
-  const users = [
-    {
-      name: "John Doe", // Add name field if needed by User interface
-      email: "john@example.com",
-      // password: await bcrypt.hash('password123', 10), // Example: Hash password before storing
-      addresses: [
-        {
-          street: "789 Oak Street",
-          city: "Springfield",
-          state: "IL",
-          postalCode: "62704",
-          country: "USA"
-        },
-      ],
-      cart: [],
-      orderHistory: [],
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    },
-     {
-      name: "Jane Smith",
-      email: "jane@example.com",
-      // password: await bcrypt.hash('password456', 10),
-      addresses: [
-        {
-          street: "101 Pine Avenue",
-          city: "Riverdale",
-          state: "NY",
-          postalCode: "10471",
-          country: "USA"
-        },
-      ],
-      cart: [],
-      orderHistory: [],
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    },
-  ]
-
-  const userResult = await db.collection(COLLECTIONS.USERS).insertMany(users as any);
-  console.log(`Inserted ${userResult.insertedCount} users.`);
-
-  console.log('Dummy data seeding complete.');
-}
-
-// Delivery functions
+// --- Delivery Functions (Using reference to DeliveryAgent) ---
 export async function getDeliveriesByVendor(vendorId: string) {
-  const db = await getDb();
-  try {
-      const vendorObjectId = new ObjectId(vendorId);
-      const pipeline = [
-        { $match: { vendorId: vendorObjectId } },
-        { $sort: { createdAt: -1 } },
-        {
-          $lookup: {
-            from: COLLECTIONS.DELIVERY_AGENTS,
-            localField: "assignedAgentId",
-            foreignField: "_id",
-            as: "agentDetails"
-          }
-        },
-        {
-          $unwind: {
-            path: "$agentDetails",
-            preserveNullAndEmptyArrays: true
-          }
-        },
-        // Optional: Add lookup for customer details if needed
-        {
-            $lookup: {
-                from: COLLECTIONS.CUSTOMERS, // Assuming a CUSTOMERS collection
-                localField: "customerId",
-                foreignField: "_id",
-                as: "customerDetails"
-            }
-        },
-        {
-            $unwind: {
-                path: "$customerDetails",
-                preserveNullAndEmptyArrays: true // Keep delivery even if customer not found
-            }
-        }
-      ];
-      return db.collection<Delivery>(COLLECTIONS.DELIVERIES).aggregate(pipeline).toArray();
-  } catch (e) {
-      console.error("Error fetching deliveries by vendor:", e);
-      return [];
-  }
-}
-
-// Update status of a specific delivery, ensuring vendor ownership
-export async function updateDeliveryStatus(
-  deliveryId: string, // MongoDB _id
-  newStatus: Delivery['status'],
-  vendorId: string
-) {
-  const db = await getDb();
-  try {
-    const deliveryObjectId = new ObjectId(deliveryId);
-    const vendorObjectId = new ObjectId(vendorId);
-
-    const updateData: Partial<Delivery> = {
-      status: newStatus,
-      updatedAt: new Date()
-    };
-
-    if (newStatus === 'Delivered') {
-      updateData.actualDeliveryTime = new Date();
-    }
-
-    const result = await db.collection<Delivery>(COLLECTIONS.DELIVERIES).updateOne(
-      { _id: deliveryObjectId, vendorId: vendorObjectId }, // Match delivery AND vendor
-      { $set: updateData }
-    );
-    return result;
-  } catch (e) {
-     console.error("Error updating delivery status:", e);
-    return { acknowledged: false, matchedCount: 0, modifiedCount: 0, upsertedCount: 0, upsertedId: null };
-  }
-}
-
-// Assign an agent to a specific delivery, ensuring vendor ownership
-export async function assignAgentToDelivery(
-  deliveryId: string, // MongoDB _id
-  agentId: string | null, // Agent's MongoDB _id, or null to unassign
-  vendorId: string
-) {
-  const db = await getDb();
-  try {
-    const deliveryObjectId = new ObjectId(deliveryId);
-    const vendorObjectId = new ObjectId(vendorId);
-    const agentObjectId = agentId ? new ObjectId(agentId) : null;
-
-    // Optional: Verify the agent exists and belongs to the vendor
-    if (agentObjectId) {
-        const agent = await db.collection(COLLECTIONS.DELIVERY_AGENTS).findOne({ _id: agentObjectId, vendorId: vendorObjectId });
-        if (!agent) {
-            console.error(`Agent ${agentId} not found or does not belong to vendor ${vendorId}`);
-            // Return a failure-like result
-            return { acknowledged: true, matchedCount: 0, modifiedCount: 0 }; 
-        }
-    }
-
-    const result = await db.collection<Delivery>(COLLECTIONS.DELIVERIES).updateOne(
-      { _id: deliveryObjectId, vendorId: vendorObjectId }, // Match delivery AND vendor
-      {
-        $set: {
-          assignedAgentId: agentObjectId,
-          status: agentObjectId ? 'Assigned' : 'Pending Assignment',
-          updatedAt: new Date()
-        }
-      }
-    );
-    return result;
-  } catch (e) {
-     console.error("Error assigning agent to delivery:", e);
-    return { acknowledged: false, matchedCount: 0, modifiedCount: 0, upsertedCount: 0, upsertedId: null };
-  }
-}
-
-// Delivery Agent Functions
-export async function createDeliveryAgent(agentData: Omit<DeliveryAgent, '_id' | 'createdAt' | 'updatedAt'>) {
-    const db = await getDb();
+    await mongooseConnect();
     try {
-        const result = await db.collection(COLLECTIONS.DELIVERY_AGENTS).insertOne({
-            ...agentData,
-            vendorId: new ObjectId(agentData.vendorId), // Store as ObjectId
-            createdAt: new Date(),
-            updatedAt: new Date(),
-        });
-        return result;
+        if (!mongoose.Types.ObjectId.isValid(vendorId)) return [];
+        // Fetch deliveries and populate related fields
+        return await Delivery.find({ vendorId })
+                            .populate('orderId', 'orderId totalAmount') 
+                            .populate('customerId', 'name email')
+                            .populate('deliveryAgentId', 'name phone vehicleType') // Populate agent details
+                            .sort({ createdAt: -1 })
+                            .lean();
     } catch (e) {
-        console.error("Error creating delivery agent:", e);
-        return { acknowledged: false, insertedId: null };
+        console.error("Error fetching deliveries by vendor:", e);
+        return [];
+    }
+}
+
+export async function updateDeliveryStatus(deliveryId: string, newStatus: string, vendorId: string) {
+    await mongooseConnect();
+    try {
+        if (!mongoose.Types.ObjectId.isValid(deliveryId) || !mongoose.Types.ObjectId.isValid(vendorId)) {
+          throw new Error("Invalid ID format");
+        }
+
+        const updateData: any = { status: newStatus };
+        if (newStatus === 'Delivered') {
+            updateData.actualDeliveryTime = new Date();
+        }
+        // If unassigning via status change (e.g., back to Pending Assignment), clear agentId
+        if (newStatus === 'Pending Assignment') {
+            updateData.deliveryAgentId = null;
+        }
+
+        const updatedDelivery = await Delivery.findOneAndUpdate(
+            { _id: deliveryId, vendorId: vendorId }, 
+            { $set: updateData },
+            { new: true }
+        ).lean();
+
+        if (!updatedDelivery) {
+            console.log(`Delivery ${deliveryId} not found or vendor ${vendorId} mismatch.`);
+            return { acknowledged: true, matchedCount: 0, modifiedCount: 0 };
+        }
+        return { acknowledged: true, matchedCount: 1, modifiedCount: 1 }; 
+    } catch (e) {
+        console.error("Error updating delivery status:", e);
+        throw new Error("Failed to update delivery status");
+    }
+}
+
+// Modified to assign the agent's ID reference
+export async function assignAgentToDelivery(deliveryId: string, agentId: string | null, vendorId: string) {
+    await mongooseConnect();
+    try {
+        if (!mongoose.Types.ObjectId.isValid(deliveryId) || !mongoose.Types.ObjectId.isValid(vendorId)) {
+            throw new Error("Invalid Delivery/Vendor ID format");
+        }
+        
+        const agentObjectId = agentId ? new mongoose.Types.ObjectId(agentId) : null;
+        if (agentId && !mongoose.Types.ObjectId.isValid(agentId)) {
+             throw new Error("Invalid Agent ID format");
+        }
+
+        // Optional: Verify the agent exists and belongs to the vendor before assigning
+        if (agentObjectId) {
+            const agentExists = await DeliveryAgent.findOne({ _id: agentObjectId, vendorId: vendorId });
+            if (!agentExists) {
+                throw new Error(`Agent ${agentId} not found or does not belong to vendor ${vendorId}`);
+            }
+        }
+
+        const updatedDelivery = await Delivery.findOneAndUpdate(
+            { _id: deliveryId, vendorId: vendorId }, 
+            { 
+                $set: { 
+                    deliveryAgentId: agentObjectId, // Set the agent ID reference
+                    status: agentObjectId ? 'Assigned' : 'Pending Assignment', 
+                }
+            },
+            { new: true } 
+        ).lean();
+
+        if (!updatedDelivery) {
+             console.log(`Delivery ${deliveryId} not found or vendor ${vendorId} mismatch.`);
+            return { acknowledged: true, matchedCount: 0, modifiedCount: 0 };
+        }
+        return { acknowledged: true, matchedCount: 1, modifiedCount: 1 }; 
+    } catch (e) {
+        console.error("Error assigning agent to delivery:", e);
+        // Ensure the error message is passed up
+        throw new Error(`Failed to assign agent: ${(e as Error).message}`); 
+    }
+}
+
+// --- Delivery Agent Functions ---
+export async function createDeliveryAgent(agentData: any) {
+    await mongooseConnect();
+    try {
+        const newAgent = new DeliveryAgent(agentData);
+        await newAgent.save();
+        return JSON.parse(JSON.stringify(newAgent));
+    } catch (error: any) { // Catch as any to inspect properties
+        console.error("Error creating delivery agent:", error); // Log the full error for details
+
+        // Check for Mongoose Validation Error
+        if (error.name === 'ValidationError') {
+            let errorMessages = Object.values(error.errors).map((el: any) => el.message).join(', ');
+            throw new Error(`Validation failed: ${errorMessages}`);
+        } 
+        // Check for duplicate key error (already handled, but kept for clarity)
+        else if (error.code === 11000) {
+            // Extract conflicting field (Mongoose error message usually indicates it)
+            const field = Object.keys(error.keyPattern)[0];
+            throw new Error(`Delivery agent with this ${field} already exists for this vendor.`);
+        }
+        // Throw generic error for other cases
+        throw new Error("Failed to create delivery agent. Please check server logs for details.");
     }
 }
 
 export async function getDeliveryAgentsByVendor(vendorId: string) {
-    const db = await getDb();
+    await mongooseConnect();
     try {
-        const vendorObjectId = new ObjectId(vendorId);
-        return db.collection<DeliveryAgent>(COLLECTIONS.DELIVERY_AGENTS).find({ vendorId: vendorObjectId as any }).toArray();
+        if (!mongoose.Types.ObjectId.isValid(vendorId)) return [];
+        return await DeliveryAgent.find({ vendorId }).lean();
     } catch (e) {
         console.error("Error fetching delivery agents by vendor:", e);
         return [];
     }
 }
 
-export async function getDeliveryAgentById(agentId: string) {
-    const db = await getDb();
+export async function getDeliveryAgentById(agentId: string, vendorId: string) {
+    await mongooseConnect();
     try {
-        return db.collection<DeliveryAgent>(COLLECTIONS.DELIVERY_AGENTS).findOne({ _id: new ObjectId(agentId) });
+        if (!mongoose.Types.ObjectId.isValid(agentId) || !mongoose.Types.ObjectId.isValid(vendorId)) return null;
+        // Ensure agent belongs to the specified vendor for security
+        return await DeliveryAgent.findOne({ _id: agentId, vendorId: vendorId }).lean();
     } catch (e) {
-        console.error("Invalid agentId format for ObjectId:", agentId, e);
+        console.error("Error fetching delivery agent by ID:", e);
         return null;
     }
 }
 
-export async function updateDeliveryAgent(agentId: string, vendorId: string, data: Partial<Omit<DeliveryAgent, '_id' | 'vendorId'>>) {
-  const db = await getDb()
-  try {
-      const agentObjectId = new ObjectId(agentId);
-      const vendorObjectId = new ObjectId(vendorId);
-      const result = await db.collection(COLLECTIONS.DELIVERY_AGENTS).updateOne(
-        { _id: agentObjectId, vendorId: vendorObjectId as any }, // Ensure agent belongs to vendor
-        { 
-          $set: { ...data, updatedAt: new Date() } 
+export async function updateDeliveryAgent(agentId: string, vendorId: string, updates: any) {
+    await mongooseConnect();
+    try {
+        if (!mongoose.Types.ObjectId.isValid(agentId) || !mongoose.Types.ObjectId.isValid(vendorId)) {
+            throw new Error("Invalid ID format");
         }
-      )
-      return result
-  } catch (e) {
-      console.error("Error updating delivery agent:", e);
-      return { acknowledged: false, matchedCount: 0, modifiedCount: 0, upsertedCount: 0, upsertedId: null };
-  }
+        // Prevent changing vendorId
+        if (updates.vendorId) delete updates.vendorId; 
+        if (updates.createdAt) delete updates.createdAt;
+
+        const updatedAgent = await DeliveryAgent.findOneAndUpdate(
+            { _id: agentId, vendorId: vendorId }, // Match agent AND vendor
+            { $set: updates },
+            { new: true }
+        ).lean();
+        
+        if (!updatedAgent) {
+            throw new Error(`Agent ${agentId} not found or does not belong to vendor ${vendorId}`);
+        }
+        return updatedAgent;
+    } catch (e) {
+        console.error("Error updating delivery agent:", e);
+        throw new Error(`Failed to update delivery agent: ${(e as Error).message}`);
+    }
 }
 
 export async function deleteDeliveryAgent(agentId: string, vendorId: string) {
-  const db = await getDb()
-  try {
-      const agentObjectId = new ObjectId(agentId);
-      const vendorObjectId = new ObjectId(vendorId);
-      const result = await db.collection(COLLECTIONS.DELIVERY_AGENTS).deleteOne({
-        _id: agentObjectId,
-        vendorId: vendorObjectId as any // Ensure agent belongs to vendor
-      })
-      return result
-  } catch (e) {
-      console.error("Error deleting delivery agent:", e);
-      return { acknowledged: false, deletedCount: 0 };
-  }
+    await mongooseConnect();
+    try {
+        if (!mongoose.Types.ObjectId.isValid(agentId) || !mongoose.Types.ObjectId.isValid(vendorId)) {
+            throw new Error("Invalid ID format");
+        }
+        const result = await DeliveryAgent.deleteOne({ _id: agentId, vendorId: vendorId });
+        
+        if (result.deletedCount === 0) {
+             throw new Error(`Agent ${agentId} not found or does not belong to vendor ${vendorId}`);
+        }
+        // Optional: Unassign this agent from any deliveries they were assigned to
+        // await Delivery.updateMany({ deliveryAgentId: agentId }, { $set: { deliveryAgentId: null, status: 'Pending Assignment' } });
+        
+        return { deletedCount: result.deletedCount };
+    } catch (e) {
+        console.error("Error deleting delivery agent:", e);
+       throw new Error(`Failed to delete delivery agent: ${(e as Error).message}`);
+    }
 }
+
+// Seed function removed - better handled in a dedicated script.
