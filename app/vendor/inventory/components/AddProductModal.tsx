@@ -1,6 +1,8 @@
-import { useState } from "react";
-import { Loader2, Plus, X } from "lucide-react";
+import { useState, useRef } from "react";
+import { Loader2, Plus, X, Upload } from "lucide-react";
 import Image from "next/image";
+import { apiCall } from "@/lib/api";
+import { toast } from "sonner";
 
 interface AddProductModalProps {
   isOpen: boolean;
@@ -18,6 +20,8 @@ export interface ProductData {
   price: number;
   unit: string;
   description: string;
+  manufacturingDate?: string;
+  expiryDate?: string;
 }
 
 const initialProductState: ProductData = {
@@ -28,6 +32,8 @@ const initialProductState: ProductData = {
   price: 0,
   unit: "kg",
   description: "",
+  manufacturingDate: "",
+  expiryDate: "",
 };
 
 export default function AddProductModal({
@@ -39,7 +45,10 @@ export default function AddProductModal({
 }: AddProductModalProps) {
   const [product, setProduct] = useState<ProductData>(initialProductState);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [imagePreview, setImagePreview] = useState("/placeholder.svg");
+  const [productImageBase64, setProductImageBase64] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   if (!isOpen) return null;
 
@@ -48,28 +57,94 @@ export default function AddProductModal({
   ) => {
     const { name, value } = e.target;
     
+    if (e.target.type === 'file') return;
+
     if (name === "price") {
       setProduct({ ...product, [name]: parseFloat(value) || 0 });
     } else if (name === "stock") {
       setProduct({ ...product, [name]: parseInt(value) || 0 });
-    } else if (name === "imageUrl") {
-      setProduct({ ...product, [name]: value });
-      setImagePreview(value || "/placeholder.svg");
     } else {
       setProduct({ ...product, [name]: value });
     }
   };
 
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 2 * 1024 * 1024) {
+        toast.error("Image file is too large. Max size is 2MB.");
+        return;
+      }
+      if (!file.type.startsWith('image/')) {
+        toast.error("Invalid file type. Please select an image.");
+        return;
+      }
+      
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const imageDataUrl = reader.result as string;
+        setImagePreview(imageDataUrl);
+        setProductImageBase64(imageDataUrl);
+      };
+      reader.onerror = () => {
+        toast.error("Failed to read the image file.");
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const triggerFileInput = () => {
+    fileInputRef.current?.click();
+  };
+
   const handleSubmit = async () => {
-    if (!product.name || product.price <= 0) return;
+    if (!product.name || product.price <= 0) {
+      toast.warning("Please fill in required product name and price.");
+      return;
+    }
+    
+    let finalImageUrl = product.imageUrl;
+    
+    setIsSubmitting(true);
+    
+    if (productImageBase64) {
+        setIsUploadingImage(true);
+        try {
+            const uploadResponse = await apiCall<{ secure_url: string }>('/api/products/upload-image', {
+                method: 'POST',
+                body: JSON.stringify({ imageData: productImageBase64 }),
+            });
+            finalImageUrl = uploadResponse.secure_url;
+            toast.success("Product image uploaded successfully!");
+        } catch (uploadError: any) {
+            console.error("Failed to upload product image:", uploadError);
+            toast.error(`Image upload failed: ${uploadError.message || 'Unknown error'}`);
+            setIsUploadingImage(false);
+            setIsSubmitting(false);
+            return;
+        } finally {
+            setIsUploadingImage(false);
+        }
+    }
+
+    const productToSubmit = {
+      ...product,
+      imageUrl: finalImageUrl,
+      ...(product.manufacturingDate && { manufacturingDate: new Date(product.manufacturingDate) }),
+      ...(product.expiryDate && { expiryDate: new Date(product.expiryDate) }),
+    };
 
     try {
-      setIsSubmitting(true);
-      await onSubmit(product);
+      await onSubmit(productToSubmit as any); 
+      toast.success("Product added successfully!");
       setProduct(initialProductState);
-      setImagePreview("/placeholder.svg");
+      setImagePreview(initialProductState.imageUrl || "/placeholder.svg");
+      setProductImageBase64(null);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+
     } catch (error) {
-      console.error("Failed to add product:", error);
+      console.error("Failed to add product details:", error);
+      toast.error(`Failed to add product: ${(error as Error).message || 'Unknown error'}`);
     } finally {
       setIsSubmitting(false);
     }
@@ -77,7 +152,9 @@ export default function AddProductModal({
 
   const handleCancel = () => {
     setProduct(initialProductState);
-    setImagePreview("/placeholder.svg");
+    setImagePreview(initialProductState.imageUrl || "/placeholder.svg");
+    setProductImageBase64(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
     onClose();
   };
 
@@ -98,32 +175,41 @@ export default function AddProductModal({
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-            <div className="md:col-span-2 flex flex-col md:flex-row gap-4 mb-2">
-              <div className="relative w-24 h-24 rounded-md overflow-hidden border border-gray-200 dark:border-gray-600 flex-shrink-0">
-                <Image 
-                  src={imagePreview} 
-                  alt="Product preview" 
-                  fill 
-                  className="object-cover"
-                  onError={() => setImagePreview("/placeholder.svg")} 
+            <div className="md:col-span-2 flex flex-col md:flex-row gap-4 items-center mb-2">
+                <div 
+                    className="relative w-24 h-24 rounded-md overflow-hidden border border-gray-300 dark:border-gray-600 flex-shrink-0 cursor-pointer group flex items-center justify-center bg-gray-100 dark:bg-gray-700" 
+                    onClick={triggerFileInput}
+                    title="Click to upload image"
+                >
+                    <Image 
+                      src={imagePreview} 
+                      alt="Product Image Preview" 
+                      fill 
+                      className={`object-cover transition-opacity duration-300 ${isUploadingImage ? 'opacity-50' : 'group-hover:opacity-70'}`}
+                      onError={() => setImagePreview("/placeholder.svg")} 
+                    />
+                    {!productImageBase64 && !isUploadingImage && (
+                         <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300 bg-black bg-opacity-40">
+                             <Upload className="w-6 h-6 text-white" />
+                         </div>
+                    )}
+                    {isUploadingImage && (
+                         <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50">
+                            <Loader2 className="w-6 h-6 text-white animate-spin" />
+                         </div>
+                    )}
+                </div>
+                <input 
+                    type="file"
+                    ref={fileInputRef}
+                    onChange={handleFileChange}
+                    className="hidden"
+                    accept="image/*"
                 />
-              </div>
-              <div className="flex-grow">
-                <label className="block text-gray-700 dark:text-gray-300 mb-1">
-                  Image URL
-                </label>
-                <input
-                  type="text"
-                  name="imageUrl"
-                  value={product.imageUrl}
-                  onChange={handleChange}
-                  className="form-input w-full rounded-lg"
-                  placeholder="Enter image URL (optional)"
-                />
-                <p className="text-xs text-gray-500 mt-1">
-                  Enter a URL for your product image
-                </p>
-              </div>
+                <div className="text-sm text-gray-600 dark:text-gray-400">
+                   Click the image preview to upload a new product image.<br/>
+                   Max size: 2MB. Recommended: Square aspect ratio.
+                </div>
             </div>
             
             <div>
@@ -211,6 +297,32 @@ export default function AddProductModal({
               />
             </div>
 
+            <div>
+              <label className="block text-gray-700 dark:text-gray-300 mb-1">
+                Manufacturing Date
+              </label>
+              <input
+                type="date"
+                name="manufacturingDate"
+                value={product.manufacturingDate}
+                onChange={handleChange}
+                className="form-input w-full rounded-lg"
+              />
+            </div>
+
+            <div>
+              <label className="block text-gray-700 dark:text-gray-300 mb-1">
+                Expiry Date
+              </label>
+              <input
+                type="date"
+                name="expiryDate"
+                value={product.expiryDate}
+                onChange={handleChange}
+                className="form-input w-full rounded-lg"
+              />
+            </div>
+
             <div className="md:col-span-2">
               <label className="block text-gray-700 dark:text-gray-300 mb-1">
                 Description
@@ -234,27 +346,24 @@ export default function AddProductModal({
           <div className="flex gap-3">
             <button
               onClick={handleCancel}
-              className="flex-1 py-2 px-4 bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 rounded-lg transition-colors text-gray-800 dark:text-gray-200"
+              disabled={isSubmitting || isUploadingImage}
+              className="flex-1 py-2 px-4 bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 rounded-lg transition-colors text-gray-800 dark:text-gray-200 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Cancel
             </button>
             <button
               onClick={handleSubmit}
-              disabled={!product.name || product.price <= 0 || isSubmitting}
-              className={`flex-1 py-2 px-4 rounded-lg transition-colors ${
-                !product.name || product.price <= 0 || isSubmitting
+              disabled={!product.name || product.price <= 0 || isSubmitting || isUploadingImage}
+              className={`flex-1 py-2 px-4 rounded-lg transition-colors flex items-center justify-center ${
+                !product.name || product.price <= 0 || isSubmitting || isUploadingImage
                   ? "bg-green-300 cursor-not-allowed text-white"
                   : "bg-green-600 hover:bg-green-700 text-white"
               }`}
             >
-              {isSubmitting ? (
-                <div className="flex items-center justify-center">
-                  <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                  Saving...
-                </div>
-              ) : (
-                "Add Product"
-              )}
+              {(isSubmitting || isUploadingImage) ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : null}
+              {isUploadingImage ? 'Uploading Image...' : isSubmitting ? 'Adding Product...' : 'Add Product'}
             </button>
           </div>
         </div>

@@ -1,13 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyToken } from '@/lib/auth';
 // import { updateDeliveryStatus } from '@/lib/db'; // Remove native driver function
-import DeliveryModel, { IDelivery } from '@/models/Delivery'; // Import Mongoose model and interface
+import DeliveryModel from '@/lib/models/Delivery'; // Corrected import path
 // import { ObjectId } from 'mongodb'; // No longer needed
 import mongoose from 'mongoose'; // Import mongoose
 import mongooseConnect from '@/lib/mongooseConnect'; // Import the connection helper
 
-// Define allowed statuses (using type from IDelivery)
-type DeliveryStatus = IDelivery['status'];
+// Assuming IDelivery type comes from Delivery.js or a global type
+// If needed, define a minimal local type or adjust usage
+interface MinimalDelivery {
+    _id: mongoose.Types.ObjectId;
+    status: 'Pending Assignment' | 'Assigned' | 'Out for Delivery' | 'Delivered' | 'Attempted Delivery' | 'Cancelled' | 'Delayed';
+    actualDeliveryTime?: Date;
+}
+type DeliveryStatus = MinimalDelivery['status'];
 const allowedStatuses: DeliveryStatus[] = ['Pending Assignment', 'Assigned', 'Out for Delivery', 'Delivered', 'Attempted Delivery', 'Cancelled', 'Delayed'];
 
 interface UpdateStatusBody {
@@ -53,7 +59,7 @@ export async function PUT(
         // await dbConnect(); // REMOVED: Connection handled by model import/usage
 
         // Prepare update data
-        const updateData: Partial<IDelivery> = {
+        const updateData: Partial<MinimalDelivery> = {
             status: newStatus,
             // Mongoose automatically handles updatedAt via timestamps: true
         };

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyToken } from '@/lib/auth';
 // import { assignAgentToDelivery } from '@/lib/db'; // Remove native driver function
-import DeliveryModel, { IDelivery } from '@/models/Delivery'; // Import Mongoose model and interface
+import DeliveryModel from '@/lib/models/Delivery'; // Corrected import path
 // import { ObjectId } from 'mongodb'; // No longer needed
 import mongoose from 'mongoose'; // Import mongoose
 import mongooseConnect from '@/lib/mongooseConnect'; // Import the connection helper
