@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Loader2, Plus, X, Upload } from "lucide-react";
 import Image from "next/image";
 import { apiCall } from "@/lib/api";
@@ -10,6 +10,7 @@ interface AddProductModalProps {
   onSubmit: (product: ProductData) => Promise<void>;
   categories: string[];
   units: string[];
+  initialData?: Partial<ProductData> | null;
 }
 
 export interface ProductData {
@@ -42,15 +43,31 @@ export default function AddProductModal({
   onSubmit,
   categories,
   units,
+  initialData
 }: AddProductModalProps) {
-  const [product, setProduct] = useState<ProductData>(initialProductState);
+  if (!isOpen) return null;
+
+  const [product, setProduct] = useState<ProductData>({
+    ...initialProductState,
+    ...(initialData || {}),
+  });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
-  const [imagePreview, setImagePreview] = useState("/placeholder.svg");
+  const [imagePreview, setImagePreview] = useState(initialData?.imageUrl || initialProductState.imageUrl);
   const [productImageBase64, setProductImageBase64] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  if (!isOpen) return null;
+  const isCatalogMode = !!initialData;
+
+  useEffect(() => {
+    setProduct({
+      ...initialProductState,
+      ...(initialData || {}),
+    });
+    setImagePreview(initialData?.imageUrl || initialProductState.imageUrl);
+    setProductImageBase64(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  }, [initialData]);
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
@@ -98,12 +115,12 @@ export default function AddProductModal({
   };
 
   const handleSubmit = async () => {
-    if (!product.name || product.price <= 0) {
-      toast.warning("Please fill in required product name and price.");
+    if (!product.name || product.price <= 0 || (isCatalogMode && product.stock < 0)) {
+      toast.warning("Please fill in required fields (Name, Price, Stock >= 0).");
       return;
     }
     
-    let finalImageUrl = product.imageUrl;
+    let finalImageUrl = isCatalogMode && !productImageBase64 ? product.imageUrl : initialProductState.imageUrl;
     
     setIsSubmitting(true);
     
@@ -125,6 +142,8 @@ export default function AddProductModal({
         } finally {
             setIsUploadingImage(false);
         }
+    } else if (!finalImageUrl) {
+        finalImageUrl = initialProductState.imageUrl;
     }
 
     const productToSubmit = {
@@ -137,11 +156,7 @@ export default function AddProductModal({
     try {
       await onSubmit(productToSubmit as any); 
       toast.success("Product added successfully!");
-      setProduct(initialProductState);
-      setImagePreview(initialProductState.imageUrl || "/placeholder.svg");
-      setProductImageBase64(null);
-      if (fileInputRef.current) fileInputRef.current.value = "";
-
+      onClose();
     } catch (error) {
       console.error("Failed to add product details:", error);
       toast.error(`Failed to add product: ${(error as Error).message || 'Unknown error'}`);
@@ -151,10 +166,6 @@ export default function AddProductModal({
   };
 
   const handleCancel = () => {
-    setProduct(initialProductState);
-    setImagePreview(initialProductState.imageUrl || "/placeholder.svg");
-    setProductImageBase64(null);
-    if (fileInputRef.current) fileInputRef.current.value = "";
     onClose();
   };
 
@@ -164,7 +175,7 @@ export default function AddProductModal({
         <div className="p-6">
           <div className="flex justify-between items-center mb-6">
             <h2 className="text-xl font-bold text-gray-800 dark:text-white flex items-center">
-              <Plus className="mr-2 h-5 w-5 text-green-500" /> Add New Product
+              <Plus className="mr-2 h-5 w-5 text-green-500" /> {isCatalogMode ? 'Add Stock for Catalog Item' : 'Add New Product'}
             </h2>
             <button
               onClick={handleCancel}
@@ -177,9 +188,9 @@ export default function AddProductModal({
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
             <div className="md:col-span-2 flex flex-col md:flex-row gap-4 items-center mb-2">
                 <div 
-                    className="relative w-24 h-24 rounded-md overflow-hidden border border-gray-300 dark:border-gray-600 flex-shrink-0 cursor-pointer group flex items-center justify-center bg-gray-100 dark:bg-gray-700" 
-                    onClick={triggerFileInput}
-                    title="Click to upload image"
+                    className={`relative w-24 h-24 rounded-md overflow-hidden border border-gray-300 dark:border-gray-600 flex-shrink-0 ${isCatalogMode ? 'cursor-default' : 'cursor-pointer group'}`} 
+                    onClick={!isCatalogMode ? triggerFileInput : undefined}
+                    title={isCatalogMode ? product.name : "Click to upload image"}
                 >
                     <Image 
                       src={imagePreview} 
@@ -188,7 +199,7 @@ export default function AddProductModal({
                       className={`object-cover transition-opacity duration-300 ${isUploadingImage ? 'opacity-50' : 'group-hover:opacity-70'}`}
                       onError={() => setImagePreview("/placeholder.svg")} 
                     />
-                    {!productImageBase64 && !isUploadingImage && (
+                    {!isCatalogMode && !productImageBase64 && !isUploadingImage && (
                          <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300 bg-black bg-opacity-40">
                              <Upload className="w-6 h-6 text-white" />
                          </div>
@@ -205,10 +216,11 @@ export default function AddProductModal({
                     onChange={handleFileChange}
                     className="hidden"
                     accept="image/*"
+                    disabled={isCatalogMode}
                 />
                 <div className="text-sm text-gray-600 dark:text-gray-400">
-                   Click the image preview to upload a new product image.<br/>
-                   Max size: 2MB. Recommended: Square aspect ratio.
+                   {isCatalogMode ? `Image for ${product.name}` : `Click the image preview to upload a new product image.<br/>
+                   Max size: 2MB. Recommended: Square aspect ratio.`}
                 </div>
             </div>
             
@@ -224,6 +236,7 @@ export default function AddProductModal({
                 className="form-input w-full rounded-lg"
                 placeholder="Enter product name"
                 required
+                disabled={isCatalogMode}
               />
             </div>
 
@@ -237,8 +250,9 @@ export default function AddProductModal({
                 onChange={handleChange}
                 className="form-input w-full rounded-lg"
                 required
+                disabled={isCatalogMode}
               >
-                {categories.filter((cat) => cat !== "All").map((category) => (
+                {isCatalogMode ? <option value={product.category}>{product.category}</option> : categories.filter((cat) => cat !== "All").map((category) => (
                   <option key={category} value={category}>
                     {category}
                   </option>
@@ -273,8 +287,9 @@ export default function AddProductModal({
                 onChange={handleChange}
                 className="form-input w-full rounded-lg"
                 required
+                disabled={isCatalogMode}
               >
-                {units.map((unit) => (
+                {isCatalogMode ? <option value={product.unit}>{product.unit}</option> : units.map((unit) => (
                   <option key={unit} value={unit}>
                     {unit}
                   </option>
@@ -284,7 +299,7 @@ export default function AddProductModal({
 
             <div>
               <label className="block text-gray-700 dark:text-gray-300 mb-1">
-                Initial Stock
+                {isCatalogMode ? 'Quantity to Add*' : 'Initial Stock'}
               </label>
               <input
                 type="number"
@@ -293,7 +308,8 @@ export default function AddProductModal({
                 onChange={handleChange}
                 className="form-input w-full rounded-lg"
                 min="0"
-                placeholder="Enter initial stock"
+                placeholder={isCatalogMode ? 'Enter quantity' : 'Enter initial stock'}
+                required={isCatalogMode}
               />
             </div>
 
@@ -333,6 +349,7 @@ export default function AddProductModal({
                 onChange={handleChange}
                 className="form-input w-full rounded-lg min-h-[100px]"
                 placeholder="Enter product description"
+                disabled={isCatalogMode}
               />
             </div>
           </div>

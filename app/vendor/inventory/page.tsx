@@ -3,10 +3,12 @@
 import { useState, useEffect } from "react"
 import Image from "next/image"
 import {
-  Search, Filter, ArrowUpDown, AlertTriangle, Edit, Truck, PackageCheck, Plus, Loader2
+  Search, Filter, ArrowUpDown, AlertTriangle, Edit, Truck, PackageCheck, Plus, Loader2, ListPlus
 } from "lucide-react"
 import { getToken } from "@/lib/auth"
 import AddProductModal, { ProductData } from "./components/AddProductModal"
+import CatalogModal from "./components/CatalogModal"
+import { predefinedProductCatalog, BaseProduct, Variant } from "@/lib/predefinedProducts"
 
 // Define types for our product data
 interface Product {
@@ -30,11 +32,13 @@ export default function VendorInventoryProductsPage() {
   const [isRestockModalOpen, setIsRestockModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isCatalogModalOpen, setIsCatalogModalOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [restockAmount, setRestockAmount] = useState("");
   const [editedProduct, setEditedProduct] = useState<Product | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [initialDataForAddModal, setInitialDataForAddModal] = useState<Partial<ProductData> | null>(null);
 
   const categories = ["All", "Fruits", "Vegetables", "Dairy", "Bakery", "Grains"];
   const units = ["kg", "g", "pack", "bundle", "dozen", "piece", "liter"];
@@ -199,6 +203,32 @@ export default function VendorInventoryProductsPage() {
     }
   };
 
+  // Updated function signature and logic
+  const handleSelectFromCatalog = (variant: Variant, category: string) => {
+    setIsCatalogModalOpen(false); 
+    // Prepare initial data using the selected VARIANT and base product category
+    setInitialDataForAddModal({
+      name: variant.name,         // Use full variant name
+      category: category,         // Use category from base product
+      unit: variant.unit,          // Use variant unit
+      description: variant.description || "",
+      imageUrl: variant.imageUrl || "/placeholder.svg",
+    });
+    setIsAddModalOpen(true); 
+  };
+
+  // Modify handleAddProduct to clear initial data when adding manually
+  const handleAddNewProduct = () => {
+    setInitialDataForAddModal(null); // Ensure no pre-filled data
+    setIsAddModalOpen(true);
+  };
+  
+  // Modify closing AddProductModal to clear initial data
+  const handleCloseAddModal = () => {
+    setIsAddModalOpen(false);
+    setInitialDataForAddModal(null);
+  }
+
   // Fetch inventory data on component mount
   useEffect(() => {
     fetchInventory();
@@ -250,17 +280,28 @@ export default function VendorInventoryProductsPage() {
     );
   }
 
+  const handleAddFromCatalog = () => {
+    setIsCatalogModalOpen(true);
+  };
+
   return (
     <div className="animate-fadeIn">
       <div className="flex justify-between items-center mb-8">
         <div/>
-        <button 
-          onClick={handleAddProduct}
-          className="btn-primary flex items-center gap-2 px-4 py-2 rounded-lg bg-green-600 hover:bg-green-700 text-white transition-all dark:bg-green-500 dark:hover:bg-green-600"
-        >
-          <Plus className="w-5 h-5" />
-          <span>Add New Product</span>
-        </button>
+        <div className="flex space-x-2">
+          <button 
+            onClick={handleAddFromCatalog}
+            className="flex items-center bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg transition-colors"
+          >
+            <ListPlus className="mr-2 h-5 w-5" /> Add from Catalog
+          </button>
+          <button 
+            onClick={handleAddNewProduct}
+            className="flex items-center bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-4 rounded-lg transition-colors"
+          >
+            <Plus className="mr-2 h-5 w-5" /> Add New Product
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
@@ -660,12 +701,21 @@ export default function VendorInventoryProductsPage() {
       )}
       
       {/* Add Product Modal */}
-      <AddProductModal 
+      <AddProductModal
         isOpen={isAddModalOpen}
-        onClose={() => setIsAddModalOpen(false)}
+        onClose={handleCloseAddModal}
         onSubmit={handleSubmitNewProduct}
         categories={categories}
         units={units}
+        initialData={initialDataForAddModal}
+      />
+      
+      {/* Pass the structured catalog to CatalogModal */}
+      <CatalogModal
+        isOpen={isCatalogModalOpen}
+        onClose={() => setIsCatalogModalOpen(false)}
+        catalog={predefinedProductCatalog}
+        onSelectProduct={handleSelectFromCatalog}
       />
     </div>
   );
