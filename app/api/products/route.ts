@@ -1,20 +1,22 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { getProducts, createProduct, seedDummyData } from "@/lib/db"
-import { getDb } from '@/lib/mongodb'
-import { COLLECTIONS } from '@/lib/mongodb'
+import { getProducts, createProduct } from "@/lib/db"
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    const db = await getDb()
-    const products = await db
-      .collection(COLLECTIONS.PRODUCTS)
-      .find({ isAvailable: true })
-      .toArray()
+    const url = new URL(request.url)
+    const limitParam = url.searchParams.get('limit')
+    const skipParam = url.searchParams.get('skip')
+    const categoryParam = url.searchParams.get('category')
+
+    const limit = limitParam ? parseInt(limitParam, 10) : 20
+    const skip = skipParam ? parseInt(skipParam, 10) : 0
+    
+    const products = await getProducts(limit, skip, categoryParam || undefined)
 
     return NextResponse.json(products)
   } catch (error) {
     console.error("Error fetching products:", error)
-    return NextResponse.json({ error: "Failed to fetch products" }, { status: 500 })
+    return NextResponse.json({ error: "Failed to fetch products", details: (error as Error).message }, { status: 500 })
   }
 }
 
@@ -22,19 +24,19 @@ export async function POST(request: NextRequest) {
   try {
     const data = await request.json()
 
-    // Validate required fields
-    const requiredFields = ["name", "description", "category", "price", "stock", "imageUrl", "vendorId"]
+    const requiredFields = ["name", "description", "category", "price", "stock", "imageUrl", "vendorId", "unit"]
     for (const field of requiredFields) {
-      if (!data[field]) {
+      if (data[field] === undefined || data[field] === null) {
+        if (field === 'stock' && data[field] === 0) continue
         return NextResponse.json({ error: `Missing required field: ${field}` }, { status: 400 })
       }
     }
 
-    const result = await createProduct(data)
-    return NextResponse.json(result, { status: 201 })
+    const newProduct = await createProduct(data)
+    return NextResponse.json(newProduct, { status: 201 })
   } catch (error) {
     console.error("Error creating product:", error)
-    return NextResponse.json({ error: "Failed to create product" }, { status: 500 })
+    return NextResponse.json({ error: "Failed to create product", details: (error as Error).message }, { status: 500 })
   }
 }
 

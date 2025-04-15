@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { isAuthenticated, getUserRole, getUser } from '@/lib/auth';
-import { Home, ShoppingCart, User, LogOut, Menu, X, Package, Settings, Sun, Moon } from 'lucide-react';
+import { Home, ShoppingCart, User, LogOut, Menu, X, Package, Settings, Sun, Moon, Store } from 'lucide-react';
 
 export default function CustomerLayout({
   children,
@@ -95,6 +95,18 @@ export default function CustomerLayout({
               >
                 <Home className="w-5 h-5" />
                 <span>Home</span>
+              </Link>
+
+              <Link
+                href="/customer/products"
+                className={`flex items-center space-x-1 px-3 py-2 rounded-md ${
+                  pathname.startsWith('/customer/products')
+                    ? 'bg-green-50 dark:bg-green-900/30 text-green-600 dark:text-green-400'
+                    : 'text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
+                }`}
+              >
+                <Store className="w-5 h-5" />
+                <span>Products</span>
               </Link>
 
               <Link
@@ -189,6 +201,19 @@ export default function CustomerLayout({
               >
                 <Home className="w-5 h-5" />
                 <span>Home</span>
+              </Link>
+
+              <Link
+                href="/customer/products"
+                className={`flex items-center space-x-2 px-3 py-2 rounded-md ${
+                  pathname.startsWith('/customer/products')
+                    ? 'bg-green-50 dark:bg-green-900/30 text-green-600 dark:text-green-400'
+                    : 'text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
+                }`}
+                onClick={() => setIsMobileMenuOpen(false)}
+              >
+                <Store className="w-5 h-5" />
+                <span>Products</span>
               </Link>
 
               <Link

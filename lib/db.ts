@@ -12,9 +12,17 @@ import mongoose from 'mongoose'; // Needed for ObjectId checks if required
 // --- Product Functions ---
 export async function getProducts(limit = 20, skip = 0, category?: string) {
   await mongooseConnect();
-  const query = category ? { category } : {};
+  // Build the query object conditionally
+  const query: mongoose.FilterQuery<typeof Product> = {}; 
+  if (category) {
+    query.category = category;
+  }
+  // Ensure only available products are fetched for customer view
+  query.isAvailable = true; 
+  
   try {
-    return await Product.find(query).skip(skip).limit(limit).lean(); // Use .lean() for plain JS objects
+    // Add .lean() to return plain objects
+    return await Product.find(query).skip(skip).limit(limit).lean(); 
   } catch (error) {
     console.error("Error fetching products:", error);
     return [];

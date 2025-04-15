@@ -4,6 +4,9 @@ import { Filter, Loader } from "lucide-react"
 import ProductCard from "@/components/product-card"
 import { getProducts } from "@/lib/db"
 
+// Ensure the page is treated as dynamic to handle searchParams correctly
+export const dynamic = 'force-dynamic';
+
 interface ProductsPageProps {
   searchParams: {
     category?: string
@@ -104,9 +107,22 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
           <Suspense fallback={<LoadingProducts />}>
             {products.length > 0 ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                {products.map((product) => (
-                  <ProductCard key={product._id?.toString()} product={product} onAddToCart={() => {}} />
-                ))}
+                {products.map((product) => {
+                  // Ensure the product object is fully plain before passing
+                  const plainProduct = {
+                    ...product,
+                    _id: product._id?.toString(), // Convert ObjectId to string
+                    vendorId: product.vendorId?.toString(), // Convert vendorId if it exists/is ObjectId
+                    // Convert dates to ISO strings (safer for serialization)
+                    createdAt: product.createdAt?.toISOString(),
+                    updatedAt: product.updatedAt?.toISOString(),
+                    manufacturingDate: product.manufacturingDate?.toISOString(),
+                    expiryDate: product.expiryDate?.toISOString(),
+                  };
+                  return (
+                    <ProductCard key={plainProduct._id} product={plainProduct} />
+                  );
+                })}
               </div>
             ) : (
               <div className="bg-yellow-50 border border-yellow-200 p-6 rounded-lg text-center">

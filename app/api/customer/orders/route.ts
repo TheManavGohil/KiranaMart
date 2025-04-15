@@ -1,92 +1,51 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
-import { getCustomerOrders } from "@/lib/db";
-import { getToken, decodeToken } from "@/lib/auth";
+import mongooseConnect from "@/lib/mongooseConnect";
+import { verifyToken } from "@/lib/auth";
+import { getOrdersByUser } from "@/lib/db";
 
 // GET /api/customer/orders - Get the current customer's orders with pagination
-export async function GET(req: NextRequest) {
+export async function GET(request: NextRequest) {
+  await mongooseConnect();
   try {
-    // Support both NextAuth and JWT authentication
-    let customerId: string | undefined;
-    
-    // First try getting customer ID from NextAuth session
-    const session = await getServerSession(authOptions);
-    if (session?.user?.id) {
-      customerId = session.user.id;
-    } else {
-      // Try JWT token if NextAuth session not available
-      const token = getToken(req);
-      if (token) {
-        const decodedToken = decodeToken(token);
-        if (decodedToken && decodedToken.id) {
-          customerId = decodedToken.id;
-        }
-      }
-    }
-    
-    if (!customerId) {
-      return NextResponse.json(
-        { error: "Unauthorized" },
-        { status: 401 }
-      );
+    // 1. Verify Authentication using verifyToken from cookie
+    const tokenCookie = request.cookies.get('token');
+    const token = tokenCookie?.value;
+    if (!token) {
+      return NextResponse.json({ message: 'Authentication required' }, { status: 401 });
     }
 
-    // Get pagination parameters from query
-    const searchParams = req.nextUrl.searchParams;
-    const page = parseInt(searchParams.get("page") || "1");
-    const limit = parseInt(searchParams.get("limit") || "10");
-    const status = searchParams.get("status") || undefined;
-
-    // Get orders from the database
-    const { orders, totalOrders } = await getCustomerOrders(customerId, {
-      page, 
-      limit,
-      status
-    });
-
-    // For now, return mock data since we need to implement getCustomerOrders in db.ts
-    const mockOrders = [
-      {
-        _id: "order1",
-        orderId: "KM-2023001",
-        date: "2023-05-15",
-        status: "Delivered",
-        total: 450.75,
-        items: 5,
-        imageUrl: "/placeholder.svg"
-      },
-      {
-        _id: "order2",
-        orderId: "KM-2023002",
-        date: "2023-05-20",
-        status: "Processing",
-        total: 320.50,
-        items: 3,
-        imageUrl: "/placeholder.svg"
-      },
-      {
-        _id: "order3",
-        orderId: "KM-2023003",
-        date: "2023-05-23",
-        status: "Cancelled",
-        total: 150.25,
-        items: 2,
-        imageUrl: "/placeholder.svg"
+    let payload: any;
+    try {
+      payload = verifyToken(token); // Verify the token
+      // Check if the user role is customer
+      if (!payload?._id || payload.role !== 'customer') {
+        throw new Error('Invalid token or not a customer');
       }
-    ];
+    } catch (error) {
+      console.error("Auth Error in /api/customer/orders:", error);
+      // Clear invalid cookie? Optional.
+      return NextResponse.json({ message: 'Invalid or expired token' }, { status: 401 });
+    }
 
-    // If limit parameter is provided, return only that many orders
-    const limitedOrders = searchParams.has("limit") 
-      ? mockOrders.slice(0, limit) 
-      : mockOrders;
+    const userId = payload._id; // Get customer ID from token
 
-    return NextResponse.json(limitedOrders);
+    // 2. Fetch Orders using getOrdersByUser
+    const url = new URL(request.url);
+    const limitParam = url.searchParams.get('limit');
+    const skipParam = url.searchParams.get('skip');
+    const limit = limitParam ? parseInt(limitParam, 10) : 10; // Default limit
+    const skip = skipParam ? parseInt(skipParam, 10) : 0;   // Default skip
+
+    // Note: getOrdersByUser likely handles pagination if implemented, adjust call if needed
+    const orders = await getOrdersByUser(userId); // Fetch orders for this specific user
+    
+    // We might want pagination in getOrdersByUser eventually
+    // const orders = await getOrdersByUser(userId, limit, skip);
+
+    return NextResponse.json(orders);
+
   } catch (error) {
     console.error("Error fetching customer orders:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch customer orders" },
-      { status: 500 }
-    );
+    return NextResponse.json({ message: 'Failed to fetch orders', error: (error as Error).message }, { status: 500 });
   }
 } 
