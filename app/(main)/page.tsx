@@ -6,6 +6,8 @@ import { useState, useEffect } from 'react'
 import { ArrowRight, Leaf, Truck, ShieldCheck, Search, MapPin, Star, Clock, Loader2 } from "lucide-react"
 import ProductCard from "@/components/product-card"
 import { Product } from "@/lib/db"
+// Note: MainNavbar should NOT be imported here anymore, it's in the layout app/(main)/layout.tsx
+// import MainNavbar from "@/components/MainNavbar"
 
 const ProductGrid = ({ products }: { products: Product[] }) => {
   const handleAddToCart = (product: Product) => {
@@ -62,6 +64,7 @@ export default function Home() {
   ]
 
   return (
+    // Main container div - remove MainNavbar import if it was here
     <div className="animate-fadeIn">
       {/* Hero Section */}
       <section className="relative bg-gradient-to-br from-green-500 to-green-600 dark:from-green-600 dark:to-green-800 text-white">
@@ -248,82 +251,7 @@ export default function Home() {
           </div>
         </div>
       </section>
-
-      {/* Testimonials */}
-      <section className="py-16">
-        <div className="container mx-auto px-4">
-          <h2 className="text-3xl font-bold text-center mb-12">What Our Customers Say</h2>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md hover:shadow-lg transition-all duration-300 border border-gray-100 dark:border-gray-700">
-              <div className="flex items-center mb-4">
-                <div className="w-12 h-12 bg-green-200 dark:bg-green-900 rounded-full flex items-center justify-center text-green-700 dark:text-green-400 font-bold mr-4">
-                  S
-                </div>
-                <div>
-                  <h4 className="font-semibold">Sarah Johnson</h4>
-                  <div className="flex text-yellow-400 mt-1">
-                    <Star className="h-4 w-4 fill-current" />
-                    <Star className="h-4 w-4 fill-current" />
-                    <Star className="h-4 w-4 fill-current" />
-                    <Star className="h-4 w-4 fill-current" />
-                    <Star className="h-4 w-4 fill-current" />
-                  </div>
-                </div>
-              </div>
-              <p className="text-gray-600 dark:text-gray-300">
-                "I love the quality of the produce from KirnaMart. Everything is always fresh and the delivery is
-                prompt. Great service!"
-              </p>
-            </div>
-
-            <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md hover:shadow-lg transition-all duration-300 border border-gray-100 dark:border-gray-700">
-              <div className="flex items-center mb-4">
-                <div className="w-12 h-12 bg-green-200 dark:bg-green-900 rounded-full flex items-center justify-center text-green-700 dark:text-green-400 font-bold mr-4">
-                  M
-                </div>
-                <div>
-                  <h4 className="font-semibold">Michael Dawson</h4>
-                  <div className="flex text-yellow-400 mt-1">
-                    <Star className="h-4 w-4 fill-current" />
-                    <Star className="h-4 w-4 fill-current" />
-                    <Star className="h-4 w-4 fill-current" />
-                    <Star className="h-4 w-4 fill-current" />
-                    <Star className="h-4 w-4" />
-                  </div>
-                </div>
-              </div>
-              <p className="text-gray-600 dark:text-gray-300">
-                "The organic selection is impressive and the prices are reasonable. I've switched all my grocery
-                shopping to KiranaMart!"
-              </p>
-            </div>
-
-            <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md hover:shadow-lg transition-all duration-300 border border-gray-100 dark:border-gray-700">
-              <div className="flex items-center mb-4">
-                <div className="w-12 h-12 bg-green-200 dark:bg-green-900 rounded-full flex items-center justify-center text-green-700 dark:text-green-400 font-bold mr-4">
-                  A
-                </div>
-                <div>
-                  <h4 className="font-semibold">Amanda Lewis</h4>
-                  <div className="flex text-yellow-400 mt-1">
-                    <Star className="h-4 w-4 fill-current" />
-                    <Star className="h-4 w-4 fill-current" />
-                    <Star className="h-4 w-4 fill-current" />
-                    <Star className="h-4 w-4 fill-current" />
-                    <Star className="h-4 w-4 fill-current" />
-                  </div>
-                </div>
-              </div>
-              <p className="text-gray-600 dark:text-gray-300">
-                "First time ordering and I'm impressed! The app is easy to use and the delivery was faster than
-                expected. Will order again!"
-              </p>
-            </div>
-          </div>
-        </div>
-      </section>
+      {/* ... potentially other sections ... */}
     </div>
   )
-}
-
+} 
