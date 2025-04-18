@@ -5,7 +5,10 @@ import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { isAuthenticated, getUserRole, getUser } from '@/lib/auth';
 import { Home, ShoppingCart, User, LogOut, Menu, X, Package, Settings, Sun, Moon, Store } from 'lucide-react';
+<<<<<<< HEAD
 import CustomerNavbar from '@/components/CustomerNavbar';
+=======
+>>>>>>> 66ceb69eb1008533e49732dd38fc6c408b707123
 
 export default function CustomerLayout({
   children,
@@ -76,7 +79,10 @@ export default function CustomerLayout({
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+<<<<<<< HEAD
       <CustomerNavbar />
+=======
+>>>>>>> 66ceb69eb1008533e49732dd38fc6c408b707123
       {/* Top Navigation Bar */}
       <nav className="bg-white dark:bg-gray-800 shadow-sm dark:shadow-gray-700/20">
         <div className="container mx-auto px-4">
