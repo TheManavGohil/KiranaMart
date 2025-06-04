@@ -4,6 +4,7 @@ import Image from "next/image"
 import Link from "next/link"
 import { ShoppingCart, Star } from "lucide-react"
 import type { Product } from "@/lib/db"
+import { motion } from "framer-motion"
 
 interface ProductCardProps {
   product: Product
@@ -12,9 +13,13 @@ interface ProductCardProps {
 
 const ProductCard = ({ product, onAddToCart }: ProductCardProps) => {
   return (
-    <div className="card group hover:translate-y-[-4px] transition-all duration-300">
+    <motion.div
+      className="card group hover:translate-y-[-4px] transition-all duration-300"
+      whileHover={{ scale: 1.03 }}
+      whileTap={{ scale: 0.98 }}
+    >
       <div className="relative aspect-square overflow-hidden rounded-t-lg">
-        <Link href={`/product/${product._id}`}>
+        <Link href={`/customer/products/${product._id}`}>
           <div className="absolute inset-0 bg-gray-200 dark:bg-gray-700 animate-pulse"></div>
           <Image
             src={product.imageUrl || "/placeholder.png"}
@@ -32,7 +37,7 @@ const ProductCard = ({ product, onAddToCart }: ProductCardProps) => {
       <div className="p-4">
         <div className="flex justify-between items-start">
           <div>
-            <Link href={`/product/${product._id}`} className="hover:text-green-600 dark:hover:text-green-400 transition-colors">
+            <Link href={`/customer/products/${product._id}`} className="hover:text-green-600 dark:hover:text-green-400 transition-colors">
               <h3 className="font-semibold text-lg">{product.name}</h3>
             </Link>
             <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">{product.category}</p>
@@ -77,7 +82,7 @@ const ProductCard = ({ product, onAddToCart }: ProductCardProps) => {
           </p>
         )}
       </div>
-    </div>
+    </motion.div>
   )
 }
 

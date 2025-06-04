@@ -114,7 +114,7 @@ export default function AuthPage() {
       console.log("Token and user set, redirecting...");
       
       // Redirect based on role
-      const redirectPath = role === 'vendor' ? '/vendor/dashboard' : '/customer/dashboard';
+      const redirectPath = role === 'vendor' ? '/vendor/dashboard' : '/customer';
       console.log(`Redirecting to ${redirectPath}...`);
       
       // Use both router.replace and window.location for reliability

@@ -312,10 +312,15 @@ export async function getCart(userId: string) {
 export async function addToCart(userId: string, productInfo: { productId: string; quantity: number }) {
   await mongooseConnect();
   try {
-    if (!mongoose.Types.ObjectId.isValid(userId) || !mongoose.Types.ObjectId.isValid(productInfo.productId)) {
-      throw new Error("Invalid ID format");
+    // Log the collection name for debugging
+    console.log("[addToCart] User model collection:", User.collection.name);
+    // Only check ObjectId for productId
+    if (!mongoose.Types.ObjectId.isValid(productInfo.productId)) {
+      throw new Error("Invalid product ID format");
     }
-    const user = await User.findById(userId);
+    // Always query by ObjectId
+    const user = await User.findOne({ _id: new mongoose.Types.ObjectId(userId) });
+    console.log("[addToCart] User found by ObjectId?", !!user);
     if (!user) throw new Error("User not found");
 
     // Explicitly type the item in the callback
