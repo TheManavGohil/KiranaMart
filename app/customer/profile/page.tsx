@@ -5,6 +5,7 @@ import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
+import dynamic from 'next/dynamic';
 import { 
   User, 
   Mail, 
@@ -25,10 +26,21 @@ import {
   Shield,
   Heart,
   PanelLeft,
-  LogOut
+  LogOut,
+  Map
 } from "lucide-react";
 import { toast } from "sonner";
 import { getUser as getJWTUser, isAuthenticated } from "@/lib/auth";
+
+// Dynamically import the map component to avoid SSR issues
+const MapDisplay = dynamic(() => import('@/components/settings/MapDisplay'), {
+  ssr: false,
+  loading: () => (
+    <div className="h-[250px] bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
+      <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
+    </div>
+  ),
+});
 
 interface CustomerProfile {
   _id?: string;
@@ -45,6 +57,7 @@ interface CustomerProfile {
     postalCode: string;
     country: string;
     label?: string;
+    location?: [number, number]; // [latitude, longitude]
   }[];
   avatar?: string;
   preferences?: {
@@ -75,6 +88,19 @@ export default function CustomerProfilePage() {
   const [formData, setFormData] = useState<Partial<CustomerProfile>>({});
   const [activeTab, setActiveTab] = useState<'overview' | 'edit'>('overview');
   const [recentOrders, setRecentOrders] = useState<Order[]>([]);
+  const [isAddingAddress, setIsAddingAddress] = useState(false);
+  const [newAddress, setNewAddress] = useState({
+    type: 'home' as const,
+    street: '',
+    city: '',
+    state: '',
+    postalCode: '',
+    country: 'India',
+    label: '',
+    location: null as [number, number] | null,
+  });
+  const [isGeocoding, setIsGeocoding] = useState(false);
+  const [geocodeError, setGeocodeError] = useState<string | null>(null);
 
   // Combine NextAuth and custom JWT auth
   useEffect(() => {
@@ -258,6 +284,76 @@ export default function CustomerProfilePage() {
     }
   };
 
+  const handleAddressSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSaving(true);
+
+    try {
+      const response = await fetch("/api/customer/addresses", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(newAddress),
+      });
+
+      if (response.ok) {
+        toast.success("Address added successfully");
+        setIsAddingAddress(false);
+        // Refresh profile data
+        const updatedProfile = await fetch("/api/customer/profile").then(res => res.json());
+        setProfile(updatedProfile);
+      } else {
+        const error = await response.json();
+        toast.error(error.error || "Failed to add address");
+      }
+    } catch (error) {
+      console.error("Error adding address:", error);
+      toast.error("Failed to add address");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleAddressChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    const { name, value } = e.target;
+    setNewAddress(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  };
+
+  const handleGeocodeAddress = async () => {
+    if (!newAddress.street || !newAddress.city || !newAddress.state || !newAddress.postalCode) {
+      setGeocodeError("Please fill in all address fields");
+      return;
+    }
+
+    setIsGeocoding(true);
+    setGeocodeError(null);
+
+    try {
+      const addressString = `${newAddress.street}, ${newAddress.city}, ${newAddress.state} ${newAddress.postalCode}, ${newAddress.country}`;
+      const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(addressString)}`);
+      const data = await response.json();
+
+      if (data && data.length > 0) {
+        const { lat, lon } = data[0];
+        setNewAddress(prev => ({
+          ...prev,
+          location: [parseFloat(lat), parseFloat(lon)]
+        }));
+      } else {
+        setGeocodeError("Could not find location for this address");
+      }
+    } catch (error) {
+      console.error("Error geocoding address:", error);
+      setGeocodeError("Failed to get location for this address");
+    } finally {
+      setIsGeocoding(false);
+    }
+  };
+
   if (status === "loading" || isLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-gray-50 dark:bg-gray-900">
@@ -373,57 +469,226 @@ export default function CustomerProfilePage() {
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm overflow-hidden mb-6 border border-gray-100 dark:border-gray-700">
               <div className="flex justify-between items-center p-4 border-b border-gray-100 dark:border-gray-700">
                 <h3 className="font-semibold dark:text-gray-100">Saved Addresses</h3>
-                <Link 
-                  href="/customer/addresses/add"
+                <button 
+                  onClick={() => setIsAddingAddress(true)}
                   className="text-green-600 dark:text-green-400 text-sm flex items-center"
                 >
                   <Plus className="h-4 w-4 mr-1" /> Add New
-                </Link>
+                </button>
               </div>
               <div className="p-4">
-                {profile?.addresses && profile.addresses.length > 0 ? (
-              <div className="space-y-4">
-                    {profile.addresses.map((address, index) => (
-                      <div key={address._id || index} className="flex border-b dark:border-gray-700 last:border-b-0 pb-4 last:pb-0">
-                        <div className="h-10 w-10 rounded-full bg-gray-100 dark:bg-gray-700 flex items-center justify-center flex-shrink-0">
-                          {address.type === 'home' ? (
-                            <Home className="h-5 w-5 text-gray-500 dark:text-gray-400" />
-                          ) : address.type === 'work' ? (
-                            <Building className="h-5 w-5 text-gray-500 dark:text-gray-400" />
-                          ) : (
-                            <MapPin className="h-5 w-5 text-gray-500 dark:text-gray-400" />
-                          )}
-                        </div>
-                        <div className="ml-3 flex-1">
-                          <div className="flex items-center">
-                            <h4 className="font-medium text-gray-800 dark:text-gray-200">
-                              {address.type.charAt(0).toUpperCase() + address.type.slice(1)}
-                              {address.label && ` - ${address.label}`}
-                            </h4>
-                            {address.isDefault && (
-                              <span className="ml-2 text-xs bg-green-100 dark:bg-green-900/50 text-green-800 dark:text-green-400 px-2 py-0.5 rounded">
-                                Default
-                              </span>
-                            )}
-                          </div>
-                          <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                            {address.street}, {address.city}, {address.state} {address.postalCode}
-                          </p>
-                        </div>
-                        <Link href={`/customer/addresses/edit/${address._id}`} className="text-gray-400 dark:text-gray-500">
-                          <ChevronRight className="h-5 w-5" />
-                        </Link>
+                {isAddingAddress ? (
+                  <form onSubmit={handleAddressSubmit} className="space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                          Address Type
+                        </label>
+                        <select
+                          name="type"
+                          value={newAddress.type}
+                          onChange={handleAddressChange}
+                          className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-green-500 focus:border-green-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+                        >
+                          <option value="home">Home</option>
+                          <option value="work">Work</option>
+                          <option value="other">Other</option>
+                        </select>
                       </div>
-                    ))}
-                  </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                          Label (Optional)
+                        </label>
+                        <input
+                          type="text"
+                          name="label"
+                          value={newAddress.label}
+                          onChange={handleAddressChange}
+                          placeholder="e.g., My Apartment"
+                          className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-green-500 focus:border-green-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        Street Address
+                      </label>
+                      <input
+                        type="text"
+                        name="street"
+                        value={newAddress.street}
+                        onChange={handleAddressChange}
+                        required
+                        className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-green-500 focus:border-green-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                          City
+                        </label>
+                        <input
+                          type="text"
+                          name="city"
+                          value={newAddress.city}
+                          onChange={handleAddressChange}
+                          required
+                          className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-green-500 focus:border-green-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                          State
+                        </label>
+                        <input
+                          type="text"
+                          name="state"
+                          value={newAddress.state}
+                          onChange={handleAddressChange}
+                          required
+                          className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-green-500 focus:border-green-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                          Postal Code
+                        </label>
+                        <input
+                          type="text"
+                          name="postalCode"
+                          value={newAddress.postalCode}
+                          onChange={handleAddressChange}
+                          required
+                          className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-green-500 focus:border-green-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="mt-4">
+                      <button
+                        type="button"
+                        onClick={handleGeocodeAddress}
+                        disabled={isGeocoding}
+                        className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
+                      >
+                        {isGeocoding ? (
+                          <>
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            Finding Location...
+                          </>
+                        ) : (
+                          <>
+                            <Map className="h-4 w-4 mr-2" />
+                            Verify Location
+                          </>
+                        )}
+                      </button>
+                      {geocodeError && (
+                        <p className="mt-2 text-sm text-red-600 dark:text-red-400">{geocodeError}</p>
+                      )}
+                    </div>
+
+                    {newAddress.location && (
+                      <div className="mt-4">
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                          Location Map
+                        </label>
+                        <div className="rounded-md overflow-hidden border border-gray-200 dark:border-gray-700">
+                          <MapDisplay 
+                            coordinates={newAddress.location}
+                            storeName={newAddress.label || newAddress.type}
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="flex justify-end space-x-3 mt-6">
+                      <button
+                        type="button"
+                        onClick={() => setIsAddingAddress(false)}
+                        className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="submit"
+                        disabled={isSaving || !newAddress.location}
+                        className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50"
+                      >
+                        {isSaving ? (
+                          <>
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            Saving...
+                          </>
+                        ) : (
+                          <>
+                            <Save className="h-4 w-4 mr-2" />
+                            Save Address
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </form>
                 ) : (
-                  <div className="text-center py-4">
-                    <MapPin className="h-10 w-10 text-gray-300 dark:text-gray-600 mx-auto mb-2" />
-                    <p className="text-gray-500 dark:text-gray-400">No addresses saved yet</p>
-                    <Link href="/customer/addresses/add" className="text-green-600 dark:text-green-400 text-sm mt-2 inline-block">
-                      + Add a delivery address
-                    </Link>
-                  </div>
+                  <>
+                    {profile?.addresses && profile.addresses.length > 0 ? (
+                      <div className="space-y-4">
+                        {profile.addresses.map((address, index) => (
+                          <div key={address._id || index} className="flex border-b dark:border-gray-700 last:border-b-0 pb-4 last:pb-0">
+                            <div className="h-10 w-10 rounded-full bg-gray-100 dark:bg-gray-700 flex items-center justify-center flex-shrink-0">
+                              {address.type === 'home' ? (
+                                <Home className="h-5 w-5 text-gray-500 dark:text-gray-400" />
+                              ) : address.type === 'work' ? (
+                                <Building className="h-5 w-5 text-gray-500 dark:text-gray-400" />
+                              ) : (
+                                <MapPin className="h-5 w-5 text-gray-500 dark:text-gray-400" />
+                              )}
+                            </div>
+                            <div className="ml-3 flex-1">
+                              <div className="flex items-center">
+                                <h4 className="font-medium text-gray-800 dark:text-gray-200">
+                                  {address.type.charAt(0).toUpperCase() + address.type.slice(1)}
+                                  {address.label && ` - ${address.label}`}
+                                </h4>
+                                {address.isDefault && (
+                                  <span className="ml-2 text-xs bg-green-100 dark:bg-green-900/50 text-green-800 dark:text-green-400 px-2 py-0.5 rounded">
+                                    Default
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                                {address.street}, {address.city}, {address.state} {address.postalCode}
+                              </p>
+                              {address.location && (
+                                <div className="mt-2 h-[150px] rounded-md overflow-hidden border border-gray-200 dark:border-gray-700">
+                                  <MapDisplay 
+                                    coordinates={address.location}
+                                    storeName={address.label || address.type}
+                                  />
+                                </div>
+                              )}
+                            </div>
+                            <Link href={`/customer/addresses/edit/${address._id}`} className="text-gray-400 dark:text-gray-500">
+                              <ChevronRight className="h-5 w-5" />
+                            </Link>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-center py-4">
+                        <MapPin className="h-10 w-10 text-gray-300 dark:text-gray-600 mx-auto mb-2" />
+                        <p className="text-gray-500 dark:text-gray-400">No addresses saved yet</p>
+                        <button 
+                          onClick={() => setIsAddingAddress(true)}
+                          className="text-green-600 dark:text-green-400 text-sm mt-2 inline-block"
+                        >
+                          + Add a delivery address
+                        </button>
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
             </div>

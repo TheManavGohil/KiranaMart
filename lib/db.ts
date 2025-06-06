@@ -140,7 +140,6 @@ export async function getOrdersByVendor(vendorId: string) {
 export async function createOrder(orderData: any) {
   await mongooseConnect();
   try {
-    // Add validation or default setting if needed
     if (!orderData.status) orderData.status = 'Pending';
     const newOrder = new Order(orderData);
     await newOrder.save();
@@ -310,7 +309,10 @@ export async function getCart(userId: string) {
 }
 
 export async function addToCart(userId: string, productInfo: { productId: string; quantity: number }) {
+  console.log("addToCart received userId:", userId);
   await mongooseConnect();
+  console.log("Mongoose connection state in addToCart:", mongoose.connection.readyState);
+  console.log("Connected to database:", mongoose.connection.name);
   try {
     // Log the collection name for debugging
     console.log("[addToCart] User model collection:", User.collection.name);
@@ -319,9 +321,20 @@ export async function addToCart(userId: string, productInfo: { productId: string
       throw new Error("Invalid product ID format");
     }
     // Always query by ObjectId
-    const user = await User.findOne({ _id: new mongoose.Types.ObjectId(userId) });
+    const user = await User.findOne({ _id: mongoose.Types.ObjectId.isValid(userId) ? new mongoose.Types.ObjectId(userId) : userId });
     console.log("[addToCart] User found by ObjectId?", !!user);
-    if (!user) throw new Error("User not found");
+    if (!user) {
+      console.log("[addToCart] User not found with ID:", userId);
+      // Attempt to find the user using a direct query to see what Mongoose finds
+      const userDirectQuery = await mongoose.connection.db.collection('customers').findOne({ _id: mongoose.Types.ObjectId.isValid(userId) ? new mongoose.Types.ObjectId(userId) : userId });
+      console.log("[addToCart] User found via direct collection query?", !!userDirectQuery);
+      if (!userDirectQuery) {
+         // Also try finding by email as a fallback check
+         const userByEmail = await mongoose.connection.db.collection('customers').findOne({ email: "costumer@kiranamart.com" }); // Replace with actual user email if needed
+         console.log("[addToCart] User found via email query?", !!userByEmail);
+      }
+      throw new Error("User not found");
+    }
 
     // Explicitly type the item in the callback
     const itemIndex = user.cart.findIndex((item: { productId: mongoose.Types.ObjectId; quantity: number }) => 
@@ -592,3 +605,19 @@ export async function deleteDeliveryAgent(agentId: string, vendorId: string) {
 }
 
 // Seed function removed - better handled in a dedicated script.
+
+const userSchema = new mongoose.Schema({
+  name: { type: String, required: true },
+  email: { type: String, required: true, unique: true },
+  password: { type: String, required: true },
+  role: { type: String, enum: ['customer', 'vendor', 'admin'], default: 'customer' },
+  phone: { type: String },
+  address: {
+    street: { type: String },
+    city: { type: String },
+    state: { type: String },
+    pincode: { type: String },
+  },
+  createdAt: { type: Date, default: Date.now },
+  updatedAt: { type: Date, default: Date.now },
+});

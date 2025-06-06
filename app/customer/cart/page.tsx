@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { redirectIfNotAuthenticated } from '@/lib/auth';
+import { apiCall } from '@/lib/api';
 import { ArrowLeft, Trash2, ShoppingBag, Plus, Minus, MapPin, Truck, ChevronRight } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
@@ -9,11 +10,14 @@ import { PlaceholderRect } from '@/app/customer/dashboard/page';
 
 interface CartItem {
   _id: string;
-  name: string;
-  price: number;
-  unit: string;
+  productId: {
+    _id: string;
+    name: string;
+    price: number;
+    imageUrl?: string;
+    unit?: string;
+  };
   quantity: number;
-  image?: string;
 }
 
 interface Address {
@@ -35,21 +39,18 @@ export default function CartPage() {
         // Redirect if not authenticated
         redirectIfNotAuthenticated();
         
-        // For now, we'll use mock data
-        const mockCartItems: CartItem[] = [
-          { _id: '1', name: 'Organic Tomatoes', price: 40, unit: '500g', quantity: 1, image: '/images/products/tomato.jpg' },
-          { _id: '2', name: 'Fresh Milk', price: 60, unit: '500ml', quantity: 2, image: '/images/products/milk.jpg' },
-          { _id: '3', name: 'Whole Wheat Bread', price: 35, unit: 'pack', quantity: 1, image: '/images/products/bread.jpg' },
-        ];
-        
+        // Fetch real cart data
+        const cart = await apiCall<CartItem[]>("/api/customer/cart");
+        setCartItems(cart);
+
+        // For now, use mock addresses or fetch real user addresses if available
         const mockAddresses: Address[] = [
           { _id: '1', name: 'Home', address: '123 Main Street, Apartment 4B, Mumbai 400001', isDefault: true },
           { _id: '2', name: 'Office', address: 'Building 7, Tech Park, Bangalore 560001', isDefault: false }
         ];
-        
-        setCartItems(mockCartItems);
         setAddresses(mockAddresses);
         setSelectedAddress(mockAddresses.find(addr => addr.isDefault) || mockAddresses[0]);
+
       } catch (error) {
         console.error('Error fetching data:', error);
       } finally {
@@ -60,13 +61,36 @@ export default function CartPage() {
     fetchData();
   }, []);
 
-  const updateQuantity = (itemId: string, newQuantity: number) => {
+  const updateQuantity = async (itemId: string, newQuantity: number) => {
     if (newQuantity < 1) return;
-    setCartItems(prevItems =>
-      prevItems.map(item => 
-        item._id === itemId ? { ...item, quantity: newQuantity } : item
-      )
-    );
+    
+    try {
+      // Optimistically update the UI
+      setCartItems(prevItems =>
+        prevItems.map(item => 
+          item._id === itemId ? { ...item, quantity: newQuantity } : item
+        )
+      );
+
+      // Call the backend API to persist the change
+      const response = await fetch('/api/customer/cart', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ itemId, quantity: newQuantity }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to update quantity');
+      }
+
+      // If the API call fails, we could revert the optimistic update here
+      // But for now, we'll just let the next fetchData() refresh the state
+    } catch (error) {
+      console.error('Error updating quantity:', error);
+      // Optionally show an error message to the user
+    }
   };
 
   const removeItem = (itemId: string) => {
@@ -74,7 +98,7 @@ export default function CartPage() {
   };
 
   const getSubtotal = () => {
-    return cartItems.reduce((total, item) => total + (item.price * item.quantity), 0);
+    return cartItems.reduce((total, item) => total + (item.productId.price * item.quantity), 0);
   };
 
   const getDeliveryFee = () => {
@@ -116,7 +140,7 @@ export default function CartPage() {
             Looks like you haven't added any items to your cart yet.
           </p>
           <Link
-            href="/customer/categories"
+            href="/customer"
             className="bg-green-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-green-700 transition-colors"
           >
             Start Shopping
@@ -150,20 +174,20 @@ export default function CartPage() {
               {cartItems.map((item) => (
                 <div key={item._id} className="flex items-center">
                   <div className="relative w-16 h-16 flex-shrink-0">
-                    {item.image ? (
+                    {item.productId.imageUrl ? (
                       <Image
-                        src={item.image}
-                        alt={item.name}
+                        src={item.productId.imageUrl}
+                        alt={String(item.productId.name || 'Unknown Product')}
                         fill
                         className="object-cover rounded-md"
                       />
                     ) : (
-                      <PlaceholderRect name={item.name} />
+                      <PlaceholderRect name={String(item.productId.name || 'Unknown Product')} />
                     )}
                   </div>
                   <div className="ml-4 flex-grow">
                     <div className="flex justify-between">
-                      <h3 className="text-sm font-medium text-gray-900">{item.name}</h3>
+                      <h3 className="text-sm font-medium text-gray-900">{item.productId.name}</h3>
                       <button 
                         onClick={() => removeItem(item._id)}
                         className="text-gray-400 hover:text-red-500"
@@ -171,9 +195,9 @@ export default function CartPage() {
                         <Trash2 className="h-4 w-4" />
                       </button>
                     </div>
-                    <p className="text-xs text-gray-500">{item.unit}</p>
+                    <p className="text-xs text-gray-500">{item.productId.unit || 'Unit not specified'}</p>
                     <div className="flex justify-between items-center mt-2">
-                      <span className="font-bold text-gray-900">₹{item.price}</span>
+                      <span className="font-bold text-gray-900">₹{item.productId.price}</span>
                       <div className="flex items-center border border-gray-300 rounded-lg overflow-hidden">
                         <button 
                           onClick={() => updateQuantity(item._id, item.quantity - 1)}

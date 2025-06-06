@@ -47,7 +47,7 @@ export const PlaceholderRect = ({ name }: { name: string }) => (
   <div className="w-full h-full flex items-center justify-center bg-gray-200 text-gray-500">
     <div className="flex flex-col items-center">
       <ImageIcon className="h-8 w-8 mb-1" />
-      <span className="text-xs">{name.substring(0, 1)}</span>
+      <span className="text-xs">{(name || '').substring(0, 1)}</span>
     </div>
   </div>
 );

@@ -68,7 +68,7 @@ export default function Home() {
     <div className="animate-fadeIn">
       {/* Hero Section */}
       <section className="relative bg-gradient-to-br from-green-500 to-green-600 dark:from-green-600 dark:to-green-800 text-white">
-        <div className="container mx-auto px-4 py-16 md:py-24 flex flex-col md:flex-row items-center">
+        <div className="container mx-auto px-4 py-5 md:py-12 flex flex-col md:flex-row items-center">
           <div className="md:w-1/2 mb-10 md:mb-0 z-10 animate-slideUp">
             <h1 className="text-4xl md:text-5xl font-bold mb-4">Fresh Groceries Delivered to Your Door</h1>
             <p className="text-lg md:text-xl mb-6 opacity-90">
