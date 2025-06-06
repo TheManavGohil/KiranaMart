@@ -5,7 +5,6 @@ import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
-import dynamic from 'next/dynamic';
 import { 
   User, 
   Mail, 
@@ -27,45 +26,42 @@ import {
   Heart,
   PanelLeft,
   LogOut,
-  Map
+  Map,
+  Trash2
 } from "lucide-react";
 import { toast } from "sonner";
 import { getUser as getJWTUser, isAuthenticated } from "@/lib/auth";
+import AddressForm from '@/app/components/AddressForm';
+import MapDisplayComponent from '@/app/components/MapDisplay';
 
-// Dynamically import the map component to avoid SSR issues
-const MapDisplay = dynamic(() => import('@/components/settings/MapDisplay'), {
-  ssr: false,
-  loading: () => (
-    <div className="h-[250px] bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
-      <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
-    </div>
-  ),
-});
+interface PhoneNumber {
+  id: string;
+  number: string;
+  type: 'primary' | 'secondary';
+}
+
+interface Address {
+  id: string;
+  type: 'home' | 'work' | 'other';
+  street: string;
+  city: string;
+  state: string;
+  postalCode: string;
+  country: string;
+  label?: string;
+  location?: {
+    latitude: number;
+    longitude: number;
+  };
+}
 
 interface CustomerProfile {
-  _id?: string;
+  id: string;
   name: string;
   email: string;
-  phone?: string;
-  addresses?: {
-    _id?: string;
-    type: 'home' | 'work' | 'other';
-    isDefault?: boolean;
-    street: string;
-    city: string;
-    state: string;
-    postalCode: string;
-    country: string;
-    label?: string;
-    location?: [number, number]; // [latitude, longitude]
-  }[];
+  phoneNumbers: PhoneNumber[];
+  addresses: Address[];
   avatar?: string;
-  preferences?: {
-    notifications: boolean;
-    emailUpdates: boolean;
-    quickCheckout: boolean;
-    deliverySlot?: string;
-  };
 }
 
 interface Order {
@@ -101,6 +97,8 @@ export default function CustomerProfilePage() {
   });
   const [isGeocoding, setIsGeocoding] = useState(false);
   const [geocodeError, setGeocodeError] = useState<string | null>(null);
+  const [isAddingPhone, setIsAddingPhone] = useState(false);
+  const [newPhone, setNewPhone] = useState('');
 
   // Combine NextAuth and custom JWT auth
   useEffect(() => {
@@ -126,8 +124,7 @@ export default function CustomerProfilePage() {
           const response = await fetch("/api/customer/profile");
           if (response.ok) {
             const data = await response.json();
-            setProfile(data);
-            setFormData(data);
+            handleProfileData(data);
 
             // Also fetch recent orders
             try {
@@ -151,8 +148,10 @@ export default function CustomerProfilePage() {
       }
     };
 
-    fetchProfile();
-  }, [status]);
+    if (session?.user) {
+      fetchProfile();
+    }
+  }, [status, session]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -219,7 +218,7 @@ export default function CustomerProfilePage() {
         toast.success("Profile updated successfully");
         // Refresh profile data
         const updatedProfile = await fetch("/api/customer/profile").then(res => res.json());
-        setProfile(updatedProfile);
+        handleProfileData(updatedProfile);
         setActiveTab('overview');
       } else {
         const error = await response.json();
@@ -265,8 +264,8 @@ export default function CustomerProfilePage() {
           const data = await response.json();
           if (data.avatarUrl) {
             // Update the local state with the new avatar URL
-          setProfile(prev => prev ? { ...prev, avatar: data.avatarUrl } : null);
-          setFormData(prev => ({ ...prev, avatar: data.avatarUrl }));
+            handleProfileData(profile ? { ...profile, avatar: data.avatarUrl } : null);
+            setFormData(prev => ({ ...prev, avatar: data.avatarUrl }));
             toast.success(data.message || "Avatar updated successfully");
           } else {
             toast.error("No avatar URL returned from server");
@@ -300,9 +299,20 @@ export default function CustomerProfilePage() {
       if (response.ok) {
         toast.success("Address added successfully");
         setIsAddingAddress(false);
+        // Reset the form
+        setNewAddress({
+          type: 'home',
+          street: '',
+          city: '',
+          state: '',
+          postalCode: '',
+          country: 'India',
+          label: '',
+          location: null,
+        });
         // Refresh profile data
         const updatedProfile = await fetch("/api/customer/profile").then(res => res.json());
-        setProfile(updatedProfile);
+        handleProfileData(updatedProfile);
       } else {
         const error = await response.json();
         toast.error(error.error || "Failed to add address");
@@ -354,6 +364,51 @@ export default function CustomerProfilePage() {
     }
   };
 
+  const handleAddPhone = async () => {
+    // Implementation of adding a new phone
+  };
+
+  const handleDeletePhone = async (id: string) => {
+    // Implementation of deleting a phone
+  };
+
+  const handleDeleteAddress = async (id: string) => {
+    // Implementation of deleting an address
+  };
+
+  const handleSaveProfile = async () => {
+    // Implementation of saving the profile
+  };
+
+  const handleProfileData = (data: any) => {
+    const formattedProfile: CustomerProfile = {
+      id: data._id || '',
+      name: data.name || '',
+      email: data.email || '',
+      phoneNumbers: (data.phoneNumbers || []).map((phone: any) => ({
+        id: phone._id || '',
+        number: phone.number || '',
+        type: phone.type || 'secondary'
+      })),
+      addresses: (data.addresses || []).map((address: any) => ({
+        id: address._id || '',
+        type: address.type || 'home',
+        street: address.street || '',
+        city: address.city || '',
+        state: address.state || '',
+        postalCode: address.postalCode || '',
+        country: address.country || 'India',
+        label: address.label,
+        location: address.location ? {
+          latitude: address.location[1],
+          longitude: address.location[0]
+        } : undefined
+      })),
+      avatar: data.avatar
+    };
+    setProfile(formattedProfile);
+  };
+
   if (status === "loading" || isLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-gray-50 dark:bg-gray-900">
@@ -363,258 +418,119 @@ export default function CustomerProfilePage() {
   }
 
   return (
-    <div className="bg-gray-50 dark:bg-gray-900 min-h-screen pb-12">
-      {/* Header */}
-      <div className="bg-white dark:bg-gray-800 shadow-sm">
-        <div className="container mx-auto px-4 py-4">
-          <h1 className="text-xl font-bold text-gray-800 dark:text-gray-100">My Account</h1>
-        </div>
-      </div>
-
-      <div className="container mx-auto px-4 py-6 max-w-4xl">
-        {/* Profile Overview */}
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm overflow-hidden mb-6 border border-gray-100 dark:border-gray-700">
-          <div className="p-6 relative">
-            <div className="absolute top-3 right-3">
-              {profile?.avatar && (
-                <div className="text-xs text-gray-500 dark:text-gray-400 flex items-center">
-                  <Camera className="h-3 w-3 mr-1" /> 
-                  {activeTab === 'overview' ? 'Profile photo' : 'Change photo'}
-                </div>
-              )}
-            </div>
-            <div className="flex flex-col sm:flex-row items-center sm:items-start gap-4">
-              <div className="relative">
-                <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-full overflow-hidden bg-gray-100 dark:bg-gray-700 flex items-center justify-center border-2 border-white dark:border-gray-600 shadow-md">
-                  {profile?.avatar ? (
-                    <Image 
-                      src={profile.avatar} 
-                      alt={profile.name || "Profile"} 
-                      width={112} 
-                      height={112}
-                      className="object-cover w-full h-full"
-                    />
-                  ) : (
-                    <User className="h-12 w-12 text-gray-400 dark:text-gray-300" />
-                  )}
-                </div>
-                {activeTab === 'edit' && (
-                <label 
-                  htmlFor="avatar-upload" 
-                    className="absolute bottom-1 right-1 bg-green-500 text-white p-1.5 rounded-full cursor-pointer hover:bg-green-600 transition-colors shadow-sm"
-                >
-                    <Camera className="h-4 w-4" />
-                </label>
-                )}
-                {isUploading && (
-                  <div className="absolute inset-0 flex items-center justify-center bg-black/30 rounded-full">
-                    <Loader2 className="h-8 w-8 text-white animate-spin" />
-                  </div>
-                )}
-                <input 
-                  id="avatar-upload" 
-                  type="file" 
-                  accept="image/*" 
-                  className="hidden" 
-                  onChange={handleAvatarUpload}
-                  disabled={isUploading}
-                />
-              </div>
-
-              <div className="flex-1 text-center sm:text-left">
-                <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-100">{profile?.name}</h2>
-                <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 mt-1 text-gray-500 dark:text-gray-400">
-                  <div className="flex items-center justify-center sm:justify-start">
-                    <Phone className="h-4 w-4 mr-1.5" />
-                    <span>{profile?.phone || "Add phone number"}</span>
-                  </div>
-                  <div className="flex items-center justify-center sm:justify-start">
-                    <Mail className="h-4 w-4 mr-1.5" />
-                    <span>{profile?.email}</span>
-                  </div>
-                </div>
-                
-                {activeTab === 'overview' && (
-                  <button 
-                    onClick={() => setActiveTab('edit')} 
-                    className="mt-4 bg-green-50 dark:bg-green-900/30 text-green-600 dark:text-green-400 px-6 py-2 rounded-lg text-sm font-medium hover:bg-green-100 dark:hover:bg-green-900/50 transition-colors"
-                  >
-                    Edit Profile
-                  </button>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {activeTab === 'overview' ? (
-          <>
-            {/* Quick Links */}
-            <div className="grid grid-cols-3 gap-3 mb-6">
-              <Link href="/customer/orders" className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-sm border border-gray-100 dark:border-gray-700 text-center">
-                <Package className="h-6 w-6 mx-auto text-green-500 mb-2" />
-                <span className="text-sm font-medium dark:text-gray-200">My Orders</span>
-              </Link>
-              <Link href="/customer/favorites" className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-sm border border-gray-100 dark:border-gray-700 text-center">
-                <Heart className="h-6 w-6 mx-auto text-green-500 mb-2" />
-                <span className="text-sm font-medium dark:text-gray-200">Favorites</span>
-              </Link>
-              <button onClick={() => window.location.href = '/auth'} className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-sm border border-gray-100 dark:border-gray-700 text-center">
-                <LogOut className="h-6 w-6 mx-auto text-red-500 mb-2" />
-                <span className="text-sm font-medium dark:text-gray-200">Logout</span>
-              </button>
-            </div>
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="max-w-3xl mx-auto">
+        <div className="bg-white shadow rounded-lg">
+          <div className="px-4 py-5 sm:p-6">
+            <h3 className="text-lg leading-6 font-medium text-gray-900 mb-4">
+              Profile Information
+            </h3>
             
-            {/* Addresses */}
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm overflow-hidden mb-6 border border-gray-100 dark:border-gray-700">
-              <div className="flex justify-between items-center p-4 border-b border-gray-100 dark:border-gray-700">
-                <h3 className="font-semibold dark:text-gray-100">Saved Addresses</h3>
-                <button 
-                  onClick={() => setIsAddingAddress(true)}
-                  className="text-green-600 dark:text-green-400 text-sm flex items-center"
+            {/* Personal Information */}
+            <div className="space-y-6">
+              <div>
+                <label className="block text-sm font-medium text-gray-700">
+                  Full Name
+                </label>
+                <div className="mt-1 flex rounded-md shadow-sm">
+                  <input
+                    type="text"
+                    value={profile?.name}
+                    onChange={(e) => handleProfileData({ ...profile, name: e.target.value })}
+                    className="flex-1 min-w-0 block w-full px-3 py-2 rounded-md border border-gray-300 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700">
+                  Email
+                </label>
+                <div className="mt-1 flex rounded-md shadow-sm">
+                  <input
+                    type="email"
+                    value={profile?.email}
+                    onChange={(e) => handleProfileData({ ...profile, email: e.target.value })}
+                    className="flex-1 min-w-0 block w-full px-3 py-2 rounded-md border border-gray-300 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Phone Numbers */}
+            <div className="mt-8">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg leading-6 font-medium text-gray-900">
+                  Phone Numbers
+                </h3>
+                <button
+                  onClick={() => setIsAddingPhone(true)}
+                  className="inline-flex items-center px-3 py-1.5 border border-transparent text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
                 >
-                  <Plus className="h-4 w-4 mr-1" /> Add New
+                  <Plus className="h-4 w-4 mr-1" />
+                  Add New
                 </button>
               </div>
-              <div className="p-4">
-                {isAddingAddress ? (
-                  <form onSubmit={handleAddressSubmit} className="space-y-4">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+              {/* Phone Numbers List */}
+              <div className="space-y-4">
+                {profile?.phoneNumbers?.map((phone) => (
+                  <div
+                    key={phone.id}
+                    className="flex items-center justify-between p-4 bg-gray-50 rounded-lg"
+                  >
+                    <div className="flex items-center space-x-3">
+                      <Phone className="h-5 w-5 text-gray-400" />
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                          Address Type
-                        </label>
-                        <select
-                          name="type"
-                          value={newAddress.type}
-                          onChange={handleAddressChange}
-                          className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-green-500 focus:border-green-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
-                        >
-                          <option value="home">Home</option>
-                          <option value="work">Work</option>
-                          <option value="other">Other</option>
-                        </select>
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                          Label (Optional)
-                        </label>
-                        <input
-                          type="text"
-                          name="label"
-                          value={newAddress.label}
-                          onChange={handleAddressChange}
-                          placeholder="e.g., My Apartment"
-                          className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-green-500 focus:border-green-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
-                        />
+                        <p className="text-sm font-medium text-gray-900">
+                          {phone.number}
+                        </p>
+                        <p className="text-xs text-gray-500">
+                          {phone.type === 'primary' ? 'Primary' : 'Secondary'}
+                        </p>
                       </div>
                     </div>
+                    <button
+                      onClick={() => handleDeletePhone(phone.id)}
+                      className="text-red-600 hover:text-red-800"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
+                ))}
+              </div>
 
+              {/* Add Phone Form */}
+              {isAddingPhone && (
+                <div className="mt-4 p-4 bg-gray-50 rounded-lg">
+                  <div className="space-y-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                        Street Address
+                      <label className="block text-sm font-medium text-gray-700">
+                        Phone Number
                       </label>
-                      <input
-                        type="text"
-                        name="street"
-                        value={newAddress.street}
-                        onChange={handleAddressChange}
-                        required
-                        className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-green-500 focus:border-green-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
-                      />
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                          City
-                        </label>
+                      <div className="mt-1">
                         <input
-                          type="text"
-                          name="city"
-                          value={newAddress.city}
-                          onChange={handleAddressChange}
-                          required
-                          className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-green-500 focus:border-green-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                          State
-                        </label>
-                        <input
-                          type="text"
-                          name="state"
-                          value={newAddress.state}
-                          onChange={handleAddressChange}
-                          required
-                          className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-green-500 focus:border-green-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                          Postal Code
-                        </label>
-                        <input
-                          type="text"
-                          name="postalCode"
-                          value={newAddress.postalCode}
-                          onChange={handleAddressChange}
-                          required
-                          className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-green-500 focus:border-green-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+                          type="tel"
+                          value={newPhone}
+                          onChange={(e) => setNewPhone(e.target.value)}
+                          className="block w-full px-3 py-2 rounded-md border border-gray-300 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm"
+                          placeholder="Enter phone number"
                         />
                       </div>
                     </div>
-
-                    <div className="mt-4">
+                    <div className="flex justify-end space-x-3">
                       <button
-                        type="button"
-                        onClick={handleGeocodeAddress}
-                        disabled={isGeocoding}
-                        className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
-                      >
-                        {isGeocoding ? (
-                          <>
-                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                            Finding Location...
-                          </>
-                        ) : (
-                          <>
-                            <Map className="h-4 w-4 mr-2" />
-                            Verify Location
-                          </>
-                        )}
-                      </button>
-                      {geocodeError && (
-                        <p className="mt-2 text-sm text-red-600 dark:text-red-400">{geocodeError}</p>
-                      )}
-                    </div>
-
-                    {newAddress.location && (
-                      <div className="mt-4">
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                          Location Map
-                        </label>
-                        <div className="rounded-md overflow-hidden border border-gray-200 dark:border-gray-700">
-                          <MapDisplay 
-                            coordinates={newAddress.location}
-                            storeName={newAddress.label || newAddress.type}
-                          />
-                        </div>
-                      </div>
-                    )}
-
-                    <div className="flex justify-end space-x-3 mt-6">
-                      <button
-                        type="button"
-                        onClick={() => setIsAddingAddress(false)}
-                        className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
+                        onClick={() => {
+                          setIsAddingPhone(false);
+                          setNewPhone("");
+                        }}
+                        className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
                       >
                         Cancel
                       </button>
                       <button
-                        type="submit"
-                        disabled={isSaving || !newAddress.location}
+                        onClick={handleAddPhone}
+                        disabled={isSaving || !newPhone}
                         className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50"
                       >
                         {isSaving ? (
@@ -625,309 +541,107 @@ export default function CustomerProfilePage() {
                         ) : (
                           <>
                             <Save className="h-4 w-4 mr-2" />
-                            Save Address
+                            Save Phone
                           </>
                         )}
                       </button>
                     </div>
-                  </form>
-                ) : (
-                  <>
-                    {profile?.addresses && profile.addresses.length > 0 ? (
-                      <div className="space-y-4">
-                        {profile.addresses.map((address, index) => (
-                          <div key={address._id || index} className="flex border-b dark:border-gray-700 last:border-b-0 pb-4 last:pb-0">
-                            <div className="h-10 w-10 rounded-full bg-gray-100 dark:bg-gray-700 flex items-center justify-center flex-shrink-0">
-                              {address.type === 'home' ? (
-                                <Home className="h-5 w-5 text-gray-500 dark:text-gray-400" />
-                              ) : address.type === 'work' ? (
-                                <Building className="h-5 w-5 text-gray-500 dark:text-gray-400" />
-                              ) : (
-                                <MapPin className="h-5 w-5 text-gray-500 dark:text-gray-400" />
-                              )}
-                            </div>
-                            <div className="ml-3 flex-1">
-                              <div className="flex items-center">
-                                <h4 className="font-medium text-gray-800 dark:text-gray-200">
-                                  {address.type.charAt(0).toUpperCase() + address.type.slice(1)}
-                                  {address.label && ` - ${address.label}`}
-                                </h4>
-                                {address.isDefault && (
-                                  <span className="ml-2 text-xs bg-green-100 dark:bg-green-900/50 text-green-800 dark:text-green-400 px-2 py-0.5 rounded">
-                                    Default
-                                  </span>
-                                )}
-                              </div>
-                              <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                                {address.street}, {address.city}, {address.state} {address.postalCode}
-                              </p>
-                              {address.location && (
-                                <div className="mt-2 h-[150px] rounded-md overflow-hidden border border-gray-200 dark:border-gray-700">
-                                  <MapDisplay 
-                                    coordinates={address.location}
-                                    storeName={address.label || address.type}
-                                  />
-                                </div>
-                              )}
-                            </div>
-                            <Link href={`/customer/addresses/edit/${address._id}`} className="text-gray-400 dark:text-gray-500">
-                              <ChevronRight className="h-5 w-5" />
-                            </Link>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="text-center py-4">
-                        <MapPin className="h-10 w-10 text-gray-300 dark:text-gray-600 mx-auto mb-2" />
-                        <p className="text-gray-500 dark:text-gray-400">No addresses saved yet</p>
-                        <button 
-                          onClick={() => setIsAddingAddress(true)}
-                          className="text-green-600 dark:text-green-400 text-sm mt-2 inline-block"
-                        >
-                          + Add a delivery address
-                        </button>
-                      </div>
-                    )}
-                  </>
-                )}
-              </div>
+                  </div>
+                </div>
+              )}
             </div>
 
-            {/* Recent Orders */}
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm overflow-hidden mb-6 border border-gray-100 dark:border-gray-700">
-              <div className="flex justify-between items-center p-4 border-b border-gray-100 dark:border-gray-700">
-                <h3 className="font-semibold dark:text-gray-100">Recent Orders</h3>
-                <Link href="/customer/orders" className="text-green-600 dark:text-green-400 text-sm">
-                  View All
-                </Link>
+            {/* Addresses */}
+            <div className="mt-8">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg leading-6 font-medium text-gray-900">
+                  Addresses
+                </h3>
+                <button
+                  onClick={() => setIsAddingAddress(true)}
+                  className="inline-flex items-center px-3 py-1.5 border border-transparent text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
+                >
+                  <Plus className="h-4 w-4 mr-1" />
+                  Add New
+                </button>
               </div>
-              <div className="divide-y divide-gray-100 dark:divide-gray-700">
-                {recentOrders && recentOrders.length > 0 ? (
-                  recentOrders.map(order => (
-                    <Link 
-                      key={order._id} 
-                      href={`/customer/orders/${order.orderId}`} 
-                      className="block p-4 hover:bg-gray-50 dark:hover:bg-gray-700/50"
-                    >
-                      <div className="flex justify-between items-start">
-                        <div className="flex items-center">
-                          <div className="w-10 h-10 rounded-md overflow-hidden bg-gray-100 dark:bg-gray-700 mr-3 flex-shrink-0">
-                            {order.imageUrl ? (
-                              <Image
-                                src={order.imageUrl}
-                                alt={`Order ${order.orderId}`}
-                                width={40}
-                                height={40}
-                                className="object-cover w-full h-full"
-                              />
-                            ) : (
-                              <Package className="h-6 w-6 m-auto text-gray-400 dark:text-gray-500" />
+
+              {/* Addresses List */}
+              <div className="space-y-4">
+                {profile?.addresses?.map((address) => (
+                  <div
+                    key={address.id}
+                    className="p-4 bg-gray-50 rounded-lg"
+                  >
+                    <div className="flex items-start justify-between">
+                      <div className="flex items-start space-x-3">
+                        <MapPin className="h-5 w-5 text-gray-400 mt-1" />
+                        <div>
+                          <div className="flex items-center space-x-2">
+                            <p className="text-sm font-medium text-gray-900">
+                              {address.type === 'home' ? 'Home' : address.type === 'work' ? 'Work' : 'Other'}
+                            </p>
+                            {address.label && (
+                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                                {address.label}
+                              </span>
                             )}
                           </div>
-                          <div>
-                            <span className="font-medium dark:text-gray-200">{order.orderId}</span>
-                            <p className="text-sm text-gray-500 dark:text-gray-400">{order.date} • {order.items} items</p>
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <span className="font-bold dark:text-gray-200">₹{order.total.toFixed(2)}</span>
-                          <p className={`text-xs mt-1 px-2 py-0.5 rounded-full inline-block
-                            ${order.status === 'Delivered' 
-                              ? 'bg-green-100 dark:bg-green-900/40 text-green-800 dark:text-green-400' 
-                              : order.status === 'Cancelled' 
-                              ? 'bg-red-100 dark:bg-red-900/40 text-red-800 dark:text-red-400' 
-                              : 'bg-yellow-100 dark:bg-yellow-900/40 text-yellow-800 dark:text-yellow-400'}`}
-                          >
-                            {order.status}
+                          <p className="text-sm text-gray-500 mt-1">
+                            {address.street}
+                          </p>
+                          <p className="text-sm text-gray-500">
+                            {address.city}, {address.state} {address.postalCode}
+                          </p>
+                          <p className="text-sm text-gray-500">
+                            {address.country}
                           </p>
                         </div>
                       </div>
-                    </Link>
-                  ))
-                ) : (
-                  <div className="text-center py-6">
-                    <Package className="h-10 w-10 text-gray-300 dark:text-gray-600 mx-auto mb-2" />
-                    <p className="text-gray-500 dark:text-gray-400">No orders yet</p>
-                    <Link href="/" className="text-green-600 dark:text-green-400 text-sm mt-2 inline-block">
-                      Start shopping
-                    </Link>
+                      <button
+                        onClick={() => handleDeleteAddress(address.id)}
+                        className="text-red-600 hover:text-red-800"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                    {address.location && (
+                      <div className="mt-4 h-48 rounded-lg overflow-hidden">
+                        <MapDisplayComponent
+                          center={[address.location.latitude, address.location.longitude]}
+                          zoom={15}
+                        />
+                      </div>
+                    )}
                   </div>
-                )}
+                ))}
               </div>
+
+              {/* Add Address Form */}
+              {isAddingAddress && (
+                <AddressForm
+                  onSuccess={() => {
+                    setIsAddingAddress(false);
+                    // Refresh profile data
+                    fetch("/api/customer/profile")
+                      .then(res => res.json())
+                      .then(data => handleProfileData(data))
+                      .catch(error => {
+                        console.error("Error refreshing profile:", error);
+                        toast.error("Failed to refresh profile data");
+                      });
+                  }}
+                  onCancel={() => setIsAddingAddress(false)}
+                />
+              )}
             </div>
 
-            {/* Preferences */}
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm overflow-hidden border border-gray-100 dark:border-gray-700">
-              <div className="p-4 border-b border-gray-100 dark:border-gray-700">
-                <h3 className="font-semibold dark:text-gray-100">Notification Preferences</h3>
-              </div>
-              <div className="p-4 space-y-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center">
-                    <Bell className="h-5 w-5 text-gray-500 dark:text-gray-400 mr-3" />
-                    <span className="dark:text-gray-300">Push Notifications</span>
-                  </div>
-                  <label className="relative inline-flex items-center cursor-pointer">
-                    <input type="checkbox" 
-                      className="sr-only peer" 
-                      checked={profile?.preferences?.notifications || false}
-                      onChange={() => {}}
-                      disabled
-                    />
-                    <div className={`w-11 h-6 bg-gray-200 dark:bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 dark:after:border-gray-600 after:border after:rounded-full after:h-5 after:w-5 after:transition-all ${profile?.preferences?.notifications ? 'bg-green-600 dark:bg-green-500' : ''}`}></div>
-                  </label>
-                </div>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center">
-                    <MailIcon className="h-5 w-5 text-gray-500 dark:text-gray-400 mr-3" />
-                    <span className="dark:text-gray-300">Email Updates</span>
-                  </div>
-                  <label className="relative inline-flex items-center cursor-pointer">
-                    <input type="checkbox" 
-                      className="sr-only peer" 
-                      checked={profile?.preferences?.emailUpdates || false}
-                      onChange={() => {}}
-                      disabled
-                    />
-                    <div className={`w-11 h-6 bg-gray-200 dark:bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 dark:after:border-gray-600 after:border after:rounded-full after:h-5 after:w-5 after:transition-all ${profile?.preferences?.emailUpdates ? 'bg-green-600 dark:bg-green-500' : ''}`}></div>
-                  </label>
-                </div>
-                <button 
-                  onClick={() => setActiveTab('edit')}
-                  className="w-full py-2 border border-green-500 dark:border-green-600 text-green-600 dark:text-green-500 rounded-lg text-center mt-4 hover:bg-green-50 dark:hover:bg-green-900/20"
-                >
-                  Manage Preferences
-                </button>
-              </div>
-            </div>
-          </>
-        ) : (
-          <form onSubmit={handleSubmit} className="space-y-6">
-            {/* Basic Information */}
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm overflow-hidden border border-gray-100 dark:border-gray-700">
-              <div className="p-4 border-b border-gray-100 dark:border-gray-700">
-                <h3 className="font-semibold dark:text-gray-100">Basic Information</h3>
-              </div>
-              <div className="p-4 space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Full Name</label>
-                  <input
-                    type="text"
-                    name="name"
-                    value={formData.name || ''}
-                    onChange={handleInputChange}
-                    className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-green-500 focus:border-green-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Email</label>
-                    <input
-                      type="email"
-                    value={profile?.email || ''}
-                    className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-gray-50 dark:bg-gray-700"
-                      disabled
-                    />
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Email cannot be changed</p>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Phone Number</label>
-                  <input
-                    type="tel"
-                    name="phone"
-                    value={formData.phone || ''}
-                    onChange={handleInputChange}
-                    className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-green-500 focus:border-green-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
-                    placeholder="+91 XXXXXXXXXX"
-                  />
-                </div>
-              </div>
-            </div>
-            
-            {/* Preferences */}
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm overflow-hidden border border-gray-100 dark:border-gray-700">
-              <div className="p-4 border-b border-gray-100 dark:border-gray-700">
-                <h3 className="font-semibold dark:text-gray-100">Preferences</h3>
-              </div>
-              <div className="p-4 space-y-4">
-                <div className="flex items-center justify-between">
-                <div className="flex items-center">
-                    <Bell className="h-5 w-5 text-gray-500 dark:text-gray-400 mr-3" />
-                    <span className="dark:text-gray-300">Push Notifications</span>
-                  </div>
-                  <label className="relative inline-flex items-center cursor-pointer">
-                  <input
-                    type="checkbox"
-                    name="preferences.notifications"
-                    checked={formData.preferences?.notifications || false}
-                    onChange={handleCheckboxChange}
-                      className="sr-only peer"
-                    />
-                    <div className="w-11 h-6 bg-gray-200 dark:bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:bg-green-600 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 dark:after:border-gray-600 after:border after:rounded-full after:h-5 after:w-5 after:transition-all"></div>
-                  </label>
-                </div>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center">
-                    <MailIcon className="h-5 w-5 text-gray-500 dark:text-gray-400 mr-3" />
-                    <span className="dark:text-gray-300">Email Updates</span>
-                  </div>
-                  <label className="relative inline-flex items-center cursor-pointer">
-                    <input 
-                      type="checkbox" 
-                      name="preferences.emailUpdates"
-                      checked={formData.preferences?.emailUpdates || false}
-                      onChange={handleCheckboxChange}
-                      className="sr-only peer"
-                    />
-                    <div className="w-11 h-6 bg-gray-200 dark:bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:bg-green-600 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 dark:after:border-gray-600 after:border after:rounded-full after:h-5 after:w-5 after:transition-all"></div>
-                  </label>
-                </div>
-                <div className="flex items-center justify-between">
-                <div className="flex items-center">
-                    <Shield className="h-5 w-5 text-gray-500 dark:text-gray-400 mr-3" />
-                    <span className="dark:text-gray-300">Enable Quick Checkout</span>
-                  </div>
-                  <label className="relative inline-flex items-center cursor-pointer">
-                  <input
-                    type="checkbox"
-                      name="preferences.quickCheckout"
-                      checked={formData.preferences?.quickCheckout || false}
-                    onChange={handleCheckboxChange}
-                      className="sr-only peer"
-                  />
-                    <div className="w-11 h-6 bg-gray-200 dark:bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:bg-green-600 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 dark:after:border-gray-600 after:border after:rounded-full after:h-5 after:w-5 after:transition-all"></div>
-                  </label>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Preferred Delivery Time</label>
-                  <select
-                    name="preferences.deliverySlot"
-                    value={formData.preferences?.deliverySlot || ''}
-                    onChange={(e) => handleInputChange(e as any)}
-                    className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
-                  >
-                    <option value="">Select preferred time</option>
-                    <option value="morning">Morning (8am - 12pm)</option>
-                    <option value="afternoon">Afternoon (12pm - 4pm)</option>
-                    <option value="evening">Evening (4pm - 8pm)</option>
-                    <option value="night">Night (8pm - 11pm)</option>
-                  </select>
-                </div>
-              </div>
-            </div>
-            
-            <div className="flex space-x-4">
+            {/* Save Profile Button */}
+            <div className="mt-8 flex justify-end">
               <button
-                type="button"
-                onClick={() => setActiveTab('overview')}
-                className="flex-1 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700/50"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                className="flex-1 py-2 bg-green-600 dark:bg-green-700 text-white rounded-lg hover:bg-green-700 dark:hover:bg-green-600 flex items-center justify-center"
+                onClick={handleSaveProfile}
                 disabled={isSaving}
+                className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50"
               >
                 {isSaving ? (
                   <>
@@ -942,8 +656,8 @@ export default function CustomerProfilePage() {
                 )}
               </button>
             </div>
-          </form>
-        )}
+          </div>
+        </div>
       </div>
     </div>
   );
