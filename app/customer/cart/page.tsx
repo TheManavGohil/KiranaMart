@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { redirectIfNotAuthenticated } from '@/lib/auth';
-import { apiCall } from '@/lib/api';
+import { apiCall, updateData } from '@/lib/api';
 import { ArrowLeft, Trash2, ShoppingBag, Plus, Minus, MapPin, Truck, ChevronRight } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
@@ -65,6 +65,7 @@ export default function CartPage() {
     if (newQuantity < 1) return;
     
     try {
+      const originalItems = [...cartItems];
       // Optimistically update the UI
       setCartItems(prevItems =>
         prevItems.map(item => 
@@ -73,28 +74,41 @@ export default function CartPage() {
       );
 
       // Call the backend API to persist the change
-      const response = await fetch('/api/customer/cart', {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ itemId, quantity: newQuantity }),
-      });
+      await updateData(`/api/customer/cart`, { itemId, quantity: newQuantity });
 
-      if (!response.ok) {
-        throw new Error('Failed to update quantity');
-      }
-
-      // If the API call fails, we could revert the optimistic update here
-      // But for now, we'll just let the next fetchData() refresh the state
     } catch (error) {
       console.error('Error updating quantity:', error);
-      // Optionally show an error message to the user
+      // Optionally show an error message to the user and revert optimistic update
+      const cart = await apiCall<CartItem[]>("/api/customer/cart");
+      setCartItems(cart);
     }
   };
 
-  const removeItem = (itemId: string) => {
-    setCartItems(prevItems => prevItems.filter(item => item._id !== itemId));
+  const removeItem = async (productId: string) => {
+    try {
+      // Optimistically update the UI
+      setCartItems(prevItems => prevItems.filter(item => item.productId._id !== productId));
+
+      // Call the backend API
+      const response = await fetch('/api/customer/cart', {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ productId }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to remove item');
+      }
+
+    } catch (error) {
+      console.error('Error removing item:', error);
+      // Re-fetch cart on error to ensure consistency
+      // You might want to show a toast notification to the user here
+      const cart = await apiCall<CartItem[]>("/api/customer/cart");
+      setCartItems(cart);
+    }
   };
 
   const getSubtotal = () => {
@@ -189,7 +203,7 @@ export default function CartPage() {
                     <div className="flex justify-between">
                       <h3 className="text-sm font-medium text-gray-900">{item.productId.name}</h3>
                       <button 
-                        onClick={() => removeItem(item._id)}
+                        onClick={() => removeItem(item.productId._id)}
                         className="text-gray-400 hover:text-red-500"
                       >
                         <Trash2 className="h-4 w-4" />
@@ -242,22 +256,22 @@ export default function CartPage() {
             <div className="space-y-2">
               <div className="flex justify-between text-sm">
                 <span className="text-gray-600">Item Total</span>
-                <span className="text-gray-900">₹{getSubtotal()}</span>
+                <span className="text-gray-900">₹{getSubtotal().toFixed(2)}</span>
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-gray-600">Delivery Fee</span>
                 <span className={getDeliveryFee() === 0 ? "text-green-600" : "text-gray-900"}>
-                  {getDeliveryFee() === 0 ? 'FREE' : `₹${getDeliveryFee()}`}
+                  {getDeliveryFee() === 0 ? 'FREE' : `₹${getDeliveryFee().toFixed(2)}`}
                 </span>
               </div>
-              {getDeliveryFee() === 0 && (
-                <div className="text-xs text-green-600">
-                  You saved ₹40 on delivery fee
-                </div>
-              )}
-              <div className="flex justify-between text-sm pt-2 mt-2 border-t border-gray-200">
-                <span className="font-semibold text-gray-900">To Pay</span>
-                <span className="font-bold text-gray-900">₹{getTotal()}</span>
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-600">Discount</span>
+                <span className="text-green-600">-₹0.00</span>
+              </div>
+              <div className="border-t my-2"></div>
+              <div className="flex justify-between font-bold">
+                <span>To Pay</span>
+                <span>₹{getTotal().toFixed(2)}</span>
               </div>
             </div>
           </div>
@@ -266,20 +280,10 @@ export default function CartPage() {
 
       {/* Checkout Button - Fixed at bottom */}
       {cartItems.length > 0 && (
-        <div className="fixed bottom-0 left-0 right-0 bg-white shadow-md p-4">
-          <div className="container mx-auto flex justify-between items-center">
-            <div>
-              <p className="text-sm text-gray-600">Total</p>
-              <p className="text-xl font-bold text-gray-900">₹{getTotal()}</p>
-            </div>
-            <Link
-              href="/customer/checkout"
-              className="bg-green-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-green-700 transition-colors flex items-center"
-            >
-              Proceed to Checkout
-              <ChevronRight className="h-5 w-5 ml-1" />
-            </Link>
-          </div>
+        <div className="fixed bottom-0 left-0 right-0 bg-white p-4 border-t">
+          <button className="w-full bg-green-600 text-white py-3 rounded-lg font-bold hover:bg-green-700 transition-colors">
+            Proceed to Checkout
+          </button>
         </div>
       )}
     </div>

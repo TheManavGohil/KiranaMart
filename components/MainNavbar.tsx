@@ -243,14 +243,14 @@ export default function MainNavbar() {
 
                 {userRole === "customer" && (
                   <Link
-                    href="/customer/cart"
-                    className="relative p-2 rounded-full bg-white dark:bg-gray-800 shadow-sm hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-                  >
-                    <ShoppingCart className="h-6 w-6 text-gray-700 dark:text-gray-300" />
-                    <span className="absolute -top-1 -right-1 bg-green-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
-                      3
-                    </span>
-                  </Link>
+                  href="/customer/cart-v2"
+                  className="relative p-2 rounded-full bg-white dark:bg-gray-800 shadow-sm hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                >
+                  <ShoppingCart className="h-6 w-6 text-gray-700 dark:text-gray-300" />
+                  <span className="absolute -top-1 -right-1 bg-green-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
+                    3
+                  </span>
+                </Link>
                 )}
               </>
             ) : (
@@ -361,12 +361,12 @@ export default function MainNavbar() {
                   </Link>
                   {userRole === "customer" && (
                     <Link
-                      href="/customer/cart"
-                      className="block px-3 py-2 rounded-md text-base font-medium text-gray-700 dark:text-gray-300 hover:bg-green-100 dark:hover:bg-green-900/20"
-                      onClick={() => setIsMenuOpen(false)}
-                    >
-                      Cart
-                    </Link>
+                    href="/customer/cart-v2"
+                    className="block px-3 py-2 rounded-md text-base font-medium text-gray-700 dark:text-gray-300 hover:bg-green-100 dark:hover:bg-green-900/20"
+                    onClick={() => setIsMenuOpen(false)}
+                  >
+                    Cart
+                  </Link>
                   )}
                 </>
               ) : (

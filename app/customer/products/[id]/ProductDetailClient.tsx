@@ -63,12 +63,14 @@ export default function ProductDetailClient({ product }: ProductDetailClientProp
   const [added, setAdded] = useState(false);
 
   const handleAddToCart = async () => {
-    if (adding || added) return;
     setAdding(true);
     try {
-      await apiCall("/api/customer/cart", {
-        method: "POST",
-        body: JSON.stringify({ productId: product._id, quantity }),
+      await apiCall("/api/customer/cart-v2", {
+        method: 'POST',
+        body: JSON.stringify({
+          productId: product._id,
+          quantity: quantity,
+        }),
       });
       setAdded(true);
       toast.success(

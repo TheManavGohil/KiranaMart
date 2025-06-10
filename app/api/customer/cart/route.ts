@@ -115,4 +115,37 @@ export async function PUT(request: Request) {
       { status: 500 }
     );
   }
+}
+
+export async function DELETE(request: NextRequest) {
+  try {
+    const userId = await getUserIdFromRequest(request);
+    if (!userId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    
+    const { productId } = await request.json();
+
+    if (!productId) {
+      return NextResponse.json({ error: 'Missing productId' }, { status: 400 });
+    }
+
+    const cart = await Cart.findOneAndUpdate(
+      { userId: new mongoose.Types.ObjectId(userId) },
+      { $pull: { items: { productId: new mongoose.Types.ObjectId(productId) } } },
+      { new: true }
+    );
+
+    if (!cart) {
+      return NextResponse.json({ error: 'Cart not found or item not in cart' }, { status: 404 });
+    }
+    
+    return NextResponse.json({ success: true, cart });
+  } catch (error) {
+    console.error('Error removing from cart:', error);
+    return NextResponse.json(
+      { error: 'Failed to remove from cart' },
+      { status: 500 }
+    );
+  }
 } 

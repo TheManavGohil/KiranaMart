@@ -132,12 +132,12 @@ const Navbar = () => {
                   {/* Cart link (for customers) */}
                   {userRole === 'customer' && (
                     <Link
-                      href="/customer/cart"
-                      className="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors relative"
-                    >
-                      <ShoppingCart className="h-5 w-5" />
-                      <span className="absolute -top-1 -right-1 bg-green-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">3</span>
-                    </Link>
+                    href="/customer/cart-v2"
+                    className="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors relative"
+                  >
+                    <ShoppingCart className="h-5 w-5" />
+                    <span className="absolute -top-1 -right-1 bg-green-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">3</span>
+                  </Link>
                   )}
                   
                   {/* Dashboard Link */}
@@ -288,14 +288,17 @@ const Navbar = () => {
                   {userRole === 'customer' && (
                     <>
                       <Link
-                        href="/customer/cart"
-                        className="flex items-center space-x-3 w-full p-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700"
-                        onClick={toggleMenu}
+                      href="/customer/cart-v2"
+                      className="flex items-center space-x-3 w-full p-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700"
+                      onClick={toggleMenu}
                       >
-                        <div className="h-8 w-8 rounded-md bg-green-100 dark:bg-green-800 flex items-center justify-center">
-                          <ShoppingCart className="h-4 w-4 text-green-600 dark:text-green-400" />
-                        </div>
-                        <span>Cart</span>
+                      <div className="h-8 w-8 rounded-md bg-green-100 dark:bg-green-800 flex items-center justify-center">
+                        <ShoppingCart className="h-4 w-4 text-green-600 dark:text-green-400" />
+                      </div>
+                      <span>Cart</span>
+                    </Link>
+                        <ShoppingCart className="h-5 w-5" />
+                        <span className="sr-only">Cart</span>
                       </Link>
                       
                       <Link

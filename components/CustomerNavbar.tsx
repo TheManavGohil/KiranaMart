@@ -19,7 +19,9 @@ import {
   MapPin,
   Home,
   Sun,
-  Moon
+  Moon,
+  Store,
+  ShoppingBag
 } from "lucide-react";
 import { isAuthenticated, getUser, logout } from "@/lib/auth";
 
@@ -41,7 +43,7 @@ export default function CustomerNavbar() {
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [hasNewNotifications, setHasNewNotifications] = useState(true);
-  const [cartCount, setCartCount] = useState(0);
+  const [cartItemCount, setCartItemCount] = useState(0);
   const [searchQuery, setSearchQuery] = useState("");
   const [isDarkMode, setIsDarkMode] = useState(false);
 
@@ -77,10 +79,10 @@ export default function CustomerNavbar() {
 
   // Navigation links
   const navLinks = [
-    { name: "Home", href: "/customer", icon: Home },
-    { name: "Products", href: "/customer/products", icon: Package },
-    { name: "My Orders", href: "/customer/orders", icon: Package },
-    { name: "Wishlist", href: "/customer/wishlist", icon: Heart },
+    { href: '/customer/dashboard', text: 'Dashboard', icon: <Home className="h-5 w-5" /> },
+    { href: '/customer/products', text: 'Products', icon: <Package className="h-5 w-5" /> },
+    { href: '/customer/orders', text: 'Orders', icon: <ShoppingBag className="h-5 w-5" /> },
+    { href: '/customer/profile', text: 'Profile', icon: <User className="h-5 w-5" /> },
   ];
 
   useEffect(() => {
@@ -92,18 +94,6 @@ export default function CustomerNavbar() {
         if (authStatus) {
           const userData = getUser();
           setUser(userData);
-          
-          // Fetch cart count
-          try {
-            const response = await fetch('/api/customer/cart/count');
-            if (response.ok) {
-              const data = await response.json();
-              setCartCount(data.count);
-            }
-          } catch (error) {
-            console.error('Error fetching cart count:', error);
-            setCartCount(0);
-          }
         } else {
           router.push('/auth?type=login');
         }
@@ -214,16 +204,15 @@ export default function CustomerNavbar() {
           <nav className="hidden md:ml-6 md:flex md:space-x-4">
             {navLinks.map((link) => (
               <Link
-                key={link.name}
+                key={link.href}
                 href={link.href}
                 className={`inline-flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors ${
-                  pathname === link.href || pathname.startsWith(`${link.href}/`)
+                  pathname === link.href
                     ? "text-green-600 dark:text-green-500 bg-green-50 dark:bg-green-900/20"
                     : "text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800"
                 }`}
               >
-                <link.icon className="h-4 w-4 mr-1.5" />
-                <span>{link.name}</span>
+                {link.text}
               </Link>
             ))}
           </nav>
@@ -267,14 +256,14 @@ export default function CustomerNavbar() {
 
             {/* Shopping Cart Button */}
             <Link
-              href="/customer/cart"
+              href="/customer/cart-v2"
               className="relative p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
               aria-label="View shopping cart"
             >
               <ShoppingCart className="h-6 w-6 text-gray-700 dark:text-gray-300" />
-              {cartCount > 0 && (
+              {cartItemCount > 0 && (
                 <span className="absolute -top-1 -right-1 bg-green-600 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
-                  {cartCount > 9 ? '9+' : cartCount}
+                  {cartItemCount > 9 ? '9+' : cartItemCount}
                 </span>
               )}
             </Link>
@@ -450,17 +439,16 @@ export default function CustomerNavbar() {
             <div className="px-2 pt-2 pb-3 space-y-1">
               {navLinks.map((link) => (
                 <Link
-                  key={link.name}
+                  key={link.href}
                   href={link.href}
                   className={`flex items-center px-3 py-2 rounded-md text-base font-medium ${
-                    pathname === link.href || pathname.startsWith(`${link.href}/`)
+                    pathname === link.href
                       ? "text-green-600 dark:text-green-500 bg-green-50 dark:bg-green-900/20"
                       : "text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800"
                   }`}
                   onClick={() => setIsMobileMenuOpen(false)}
                 >
-                  <link.icon className="h-5 w-5 mr-2" />
-                  {link.name}
+                  {link.text}
                 </Link>
               ))}
 

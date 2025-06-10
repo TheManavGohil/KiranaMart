@@ -131,7 +131,7 @@ export default function CustomerDashboard() {
             <div className="flex justify-between items-center">
               <h1 className="text-xl font-bold text-gray-800">Hi, {user.name.split(' ')[0]}!</h1>
               <div className="flex items-center space-x-3">
-                <Link href="/customer/cart" className="relative">
+                <Link href="/customer/cart-v2" className="relative">
                   <ShoppingCart className="h-6 w-6 text-gray-700" />
                   <span className="absolute -top-1 -right-1 bg-green-500 text-white text-xs rounded-full h-4 w-4 flex items-center justify-center">
                     3
