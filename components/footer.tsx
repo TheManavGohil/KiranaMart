@@ -144,7 +144,7 @@ const Footer = () => {
         <div className="border-t border-green-700 dark:border-gray-800 mt-8 pt-6 text-center">
           <p className="text-green-200 dark:text-gray-400 flex items-center justify-center">
             &copy; {new Date().getFullYear()} KirnaMart. All rights reserved. 
-            <span className="inline-flex items-center ml-2">Made with <Heart size={14} className="mx-1 text-red-400" /> in Eco City</span>
+            <span className="inline-flex items-center ml-2">Made with <Heart size={14} className="mx-1 text-red-400" />by </span><a href="https://portfolio-inky-rho-61.vercel.app/" className="px-1 text-green-200 dark:text-gray-400 hover:text-white transition"> Manav Gohil</a>
           </p>
         </div>
       </div>

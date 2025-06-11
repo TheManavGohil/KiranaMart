@@ -145,10 +145,12 @@ export default function CustomerProfilePage() {
         } finally {
           setIsLoading(false);
         }
+      } else {
+        setIsLoading(false);
       }
     };
 
-    if (session?.user) {
+    if (status !== "loading") {
       fetchProfile();
     }
   }, [status, session]);
@@ -156,24 +158,13 @@ export default function CustomerProfilePage() {
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
     
-    if (name.includes(".")) {
-      const [parent, child] = name.split(".");
-      setFormData(prev => {
-        const parentValue = prev[parent as keyof typeof prev];
-        const updatedParentValue = typeof parentValue === 'object' && parentValue !== null
-          ? { ...parentValue, [child]: value }
-          : { [child]: value };
-          
-        return {
-        ...prev,
-          [parent]: updatedParentValue
-        };
-      });
-    } else {
-      setFormData(prev => ({
-        ...prev,
-        [name]: value
-      }));
+    // Update both profile and formData states
+    if (name === 'name') {
+      setProfile(prev => prev ? { ...prev, name: value } : null);
+      setFormData(prev => ({ ...prev, name: value }));
+    } else if (name === 'email') {
+      setProfile(prev => prev ? { ...prev, email: value } : null);
+      setFormData(prev => ({ ...prev, email: value }));
     }
   };
 
@@ -365,33 +356,175 @@ export default function CustomerProfilePage() {
   };
 
   const handleAddPhone = async () => {
-    // Implementation of adding a new phone
+    if (!newPhone.trim()) {
+      toast.error("Please enter a phone number");
+      return;
+    }
+
+    // Basic phone number validation
+    const phoneRegex = /^[\+]?[0-9\-\(\)\s]{10,15}$/;
+    if (!phoneRegex.test(newPhone.trim())) {
+      toast.error("Please enter a valid phone number");
+      return;
+    }
+
+    // Check if phone number already exists
+    if (profile?.phoneNumbers.some(phone => phone.number === newPhone.trim())) {
+      toast.error("This phone number is already added");
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      const response = await fetch("/api/customer/profile/phone", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ 
+          number: newPhone,
+          type: 'secondary'
+        }),
+      });
+
+      if (response.ok) {
+        toast.success("Phone number added successfully");
+        setIsAddingPhone(false);
+        setNewPhone("");
+        
+        // Refresh profile data
+        const updatedProfile = await fetch("/api/customer/profile").then(res => res.json());
+        handleProfileData(updatedProfile);
+      } else {
+        const error = await response.json();
+        toast.error(error.error || "Failed to add phone number");
+      }
+    } catch (error) {
+      console.error("Error adding phone:", error);
+      toast.error("Failed to add phone number");
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleDeletePhone = async (id: string) => {
-    // Implementation of deleting a phone
+    if (!confirm("Are you sure you want to delete this phone number?")) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/customer/profile/phone/${id}`, {
+        method: "DELETE",
+      });
+
+      if (response.ok) {
+        toast.success("Phone number deleted successfully");
+        
+        // Refresh profile data
+        const updatedProfile = await fetch("/api/customer/profile").then(res => res.json());
+        handleProfileData(updatedProfile);
+      } else {
+        const error = await response.json();
+        toast.error(error.error || "Failed to delete phone number");
+      }
+    } catch (error) {
+      console.error("Error deleting phone:", error);
+      toast.error("Failed to delete phone number");
+    }
   };
 
   const handleDeleteAddress = async (id: string) => {
-    // Implementation of deleting an address
+    if (!confirm("Are you sure you want to delete this address?")) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/customer/profile/address/${id}`, {
+        method: "DELETE",
+      });
+
+      if (response.ok) {
+        toast.success("Address deleted successfully");
+        
+        // Refresh profile data
+        const updatedProfile = await fetch("/api/customer/profile").then(res => res.json());
+        handleProfileData(updatedProfile);
+      } else {
+        const error = await response.json();
+        toast.error(error.error || "Failed to delete address");
+      }
+    } catch (error) {
+      console.error("Error deleting address:", error);
+      toast.error("Failed to delete address");
+    }
   };
 
   const handleSaveProfile = async () => {
-    // Implementation of saving the profile
+    if (!profile?.name.trim()) {
+      toast.error("Name is required");
+      return;
+    }
+
+    if (!profile?.email.trim()) {
+      toast.error("Email is required");
+      return;
+    }
+
+    // Email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(profile.email.trim())) {
+      toast.error("Please enter a valid email address");
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      const response = await fetch("/api/customer/profile", {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          name: profile.name,
+          email: profile.email,
+        }),
+      });
+
+      if (response.ok) {
+        toast.success("Profile updated successfully");
+        
+        // Refresh profile data
+        const updatedProfile = await fetch("/api/customer/profile").then(res => res.json());
+        handleProfileData(updatedProfile);
+      } else {
+        const error = await response.json();
+        toast.error(error.error || "Failed to update profile");
+      }
+    } catch (error) {
+      console.error("Error updating profile:", error);
+      toast.error("Failed to update profile");
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleProfileData = (data: any) => {
+    if (!data) {
+      setProfile(null);
+      return;
+    }
+
     const formattedProfile: CustomerProfile = {
       id: data._id || '',
       name: data.name || '',
       email: data.email || '',
       phoneNumbers: (data.phoneNumbers || []).map((phone: any) => ({
-        id: phone._id || '',
+        id: phone._id || phone.id || '',
         number: phone.number || '',
         type: phone.type || 'secondary'
       })),
       addresses: (data.addresses || []).map((address: any) => ({
-        id: address._id || '',
+        id: address._id || address.id || '',
         type: address.type || 'home',
         street: address.street || '',
         city: address.city || '',
@@ -400,19 +533,47 @@ export default function CustomerProfilePage() {
         country: address.country || 'India',
         label: address.label,
         location: address.location ? {
-          latitude: address.location[1],
-          longitude: address.location[0]
+          latitude: address.location[1] || address.location.latitude,
+          longitude: address.location[0] || address.location.longitude
         } : undefined
       })),
       avatar: data.avatar
     };
+    
     setProfile(formattedProfile);
+    setFormData({
+      name: formattedProfile.name,
+      email: formattedProfile.email,
+      avatar: formattedProfile.avatar
+    });
   };
 
   if (status === "loading" || isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-gray-50 dark:bg-gray-900">
-        <Loader2 className="h-8 w-8 animate-spin text-green-500" />
+      <div className="flex items-center justify-center min-h-screen bg-gray-50">
+        <div className="text-center">
+          <Loader2 className="h-8 w-8 animate-spin text-green-500 mx-auto mb-4" />
+          <p className="text-gray-600">Loading your profile...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Show message if no profile data
+  if (!isLoading && !profile) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-gray-50">
+        <div className="text-center">
+          <User className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+          <h3 className="text-lg font-medium text-gray-900 mb-2">Profile Not Found</h3>
+          <p className="text-gray-600 mb-4">Unable to load your profile information.</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors"
+          >
+            Refresh Page
+          </button>
+        </div>
       </div>
     );
   }
@@ -422,9 +583,17 @@ export default function CustomerProfilePage() {
       <div className="max-w-3xl mx-auto">
         <div className="bg-white shadow rounded-lg">
           <div className="px-4 py-5 sm:p-6">
-            <h3 className="text-lg leading-6 font-medium text-gray-900 mb-4">
-              Profile Information
-            </h3>
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-lg leading-6 font-medium text-gray-900">
+                Profile Information
+              </h3>
+              {profile && (
+                <div className="flex items-center text-sm text-gray-500">
+                  <User className="h-4 w-4 mr-1" />
+                  Welcome, {profile.name}
+                </div>
+              )}
+            </div>
             
             {/* Personal Information */}
             <div className="space-y-6">
@@ -435,8 +604,9 @@ export default function CustomerProfilePage() {
                 <div className="mt-1 flex rounded-md shadow-sm">
                   <input
                     type="text"
-                    value={profile?.name}
-                    onChange={(e) => handleProfileData({ ...profile, name: e.target.value })}
+                    name="name"
+                    value={profile?.name || ''}
+                    onChange={handleInputChange}
                     className="flex-1 min-w-0 block w-full px-3 py-2 rounded-md border border-gray-300 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm"
                   />
                 </div>
@@ -449,8 +619,9 @@ export default function CustomerProfilePage() {
                 <div className="mt-1 flex rounded-md shadow-sm">
                   <input
                     type="email"
-                    value={profile?.email}
-                    onChange={(e) => handleProfileData({ ...profile, email: e.target.value })}
+                    name="email"
+                    value={profile?.email || ''}
+                    onChange={handleInputChange}
                     className="flex-1 min-w-0 block w-full px-3 py-2 rounded-md border border-gray-300 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm"
                   />
                 </div>
@@ -512,9 +683,10 @@ export default function CustomerProfilePage() {
                         <input
                           type="tel"
                           value={newPhone}
-                          onChange={(e) => setNewPhone(e.target.value)}
+                          onChange={(e) => setNewPhone(e.target.value.replace(/[^0-9+\-\(\)\s]/g, ''))}
                           className="block w-full px-3 py-2 rounded-md border border-gray-300 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm"
-                          placeholder="Enter phone number"
+                          placeholder="Enter phone number (e.g., +91 9876543210)"
+                          maxLength={15}
                         />
                       </div>
                     </div>

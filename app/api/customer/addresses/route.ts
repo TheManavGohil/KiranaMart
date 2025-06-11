@@ -1,61 +1,63 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
-import { getToken, decodeToken } from "@/lib/auth";
+import { getDb, COLLECTIONS } from "@/lib/mongodb";
+import { verifyToken } from "@/lib/auth";
+import { ObjectId } from "mongodb";
 
 // GET /api/customer/addresses - Get customer addresses
 export async function GET(req: NextRequest) {
   try {
-    // Support both NextAuth and JWT authentication
-    let customerId: string | undefined;
+    // Authenticate Customer
+    let customerId: string | null = null;
     
-    // First try getting customer ID from NextAuth session
-    const session = await getServerSession(authOptions);
-    if (session?.user?.id) {
-      customerId = session.user.id;
+    const session = await getServerSession();
+    if (session?.user && 'id' in session.user) {
+      customerId = session.user.id as string;
     } else {
-      // Try JWT token if NextAuth session not available
-      const token = getToken(req);
-      if (token) {
-        const decodedToken = decodeToken(token);
-        if (decodedToken && decodedToken.id) {
-          customerId = decodedToken.id;
+      const tokenCookie = req.cookies.get('token');
+      const token = tokenCookie?.value;
+      if (!token) {
+        return NextResponse.json({ error: 'Authentication token missing' }, { status: 401 });
+      }
+
+      try {
+        const payload = verifyToken(token);
+        if (!payload?._id || payload.role !== 'customer') {
+          throw new Error('Invalid token or role');
         }
+        customerId = payload._id;
+      } catch (error) {
+        return NextResponse.json({ error: 'Invalid or expired token' }, { status: 401 });
       }
     }
-    
+
     if (!customerId) {
+      return NextResponse.json({ error: 'Customer ID not found' }, { status: 401 });
+    }
+
+    let customerObjectId: ObjectId;
+    try {
+      customerObjectId = new ObjectId(customerId);
+    } catch {
+      return NextResponse.json({ error: 'Invalid Customer ID format' }, { status: 400 });
+    }
+
+    const db = await getDb();
+    
+    // Find the customer and get their addresses
+    const customer = await db.collection(COLLECTIONS.CUSTOMERS).findOne({
+      _id: customerObjectId
+    });
+
+    if (!customer) {
       return NextResponse.json(
-        { error: "Unauthorized" },
-        { status: 401 }
+        { error: 'Customer not found' },
+        { status: 404 }
       );
     }
 
-    // Mock data for customer addresses
-    const addresses = [
-      {
-        id: "addr1",
-        type: "Home",
-        name: "John Doe",
-        address: "123 Main St, Apt 4B",
-        city: "Mumbai",
-        state: "Maharashtra",
-        pincode: "400001",
-        phone: "9876543210",
-        isDefault: true
-      },
-      {
-        id: "addr2",
-        type: "Office",
-        name: "John Doe",
-        address: "456 Business Park, Tower B, Floor 5",
-        city: "Mumbai",
-        state: "Maharashtra",
-        pincode: "400051",
-        phone: "9876543210",
-        isDefault: false
-      }
-    ];
+    // Return the addresses array from the customer document
+    const addresses = customer.addresses || [];
 
     return NextResponse.json(addresses);
   } catch (error) {
@@ -70,50 +72,101 @@ export async function GET(req: NextRequest) {
 // POST /api/customer/addresses - Add a new address
 export async function POST(req: NextRequest) {
   try {
-    // Support both NextAuth and JWT authentication
-    let customerId: string | undefined;
+    // Authenticate Customer - use the same pattern as phone routes
+    let customerId: string | null = null;
     
-    // First try getting customer ID from NextAuth session
-    const session = await getServerSession(authOptions);
-    if (session?.user?.id) {
-      customerId = session.user.id;
+    // Try with NextAuth session first
+    const session = await getServerSession();
+    if (session?.user && 'id' in session.user) {
+      customerId = session.user.id as string;
     } else {
-      // Try JWT token if NextAuth session not available
-      const token = getToken(req);
-      if (token) {
-        const decodedToken = decodeToken(token);
-        if (decodedToken && decodedToken.id) {
-          customerId = decodedToken.id;
+      // If no NextAuth session, try JWT
+      const tokenCookie = req.cookies.get('token');
+      const token = tokenCookie?.value;
+      if (!token) {
+        return NextResponse.json({ error: 'Authentication token missing' }, { status: 401 });
+      }
+
+      try {
+        const payload = verifyToken(token);
+        if (!payload?._id || payload.role !== 'customer') {
+          throw new Error('Invalid token or role');
         }
+        customerId = payload._id;
+      } catch (error) {
+        return NextResponse.json({ error: 'Invalid or expired token' }, { status: 401 });
       }
     }
-    
+
     if (!customerId) {
-      return NextResponse.json(
-        { error: "Unauthorized" },
-        { status: 401 }
-      );
+      return NextResponse.json({ error: 'Customer ID not found' }, { status: 401 });
+    }
+
+    let customerObjectId: ObjectId;
+    try {
+      customerObjectId = new ObjectId(customerId);
+    } catch {
+      return NextResponse.json({ error: 'Invalid Customer ID format' }, { status: 400 });
     }
 
     const addressData = await req.json();
     
     // Validate required fields
-    const requiredFields = ["name", "address", "city", "state", "pincode", "phone"];
-    for (const field of requiredFields) {
-      if (!addressData[field]) {
-        return NextResponse.json(
-          { error: `Missing required field: ${field}` },
-          { status: 400 }
-        );
-      }
+    if (!addressData.street || !addressData.city || !addressData.state || !addressData.postalCode) {
+      return NextResponse.json(
+        { error: "Missing required address fields (street, city, state, postalCode)" },
+        { status: 400 }
+      );
     }
 
-    // Mock successful response
+    const db = await getDb();
+    
+    // Find the customer
+    const customer = await db.collection(COLLECTIONS.CUSTOMERS).findOne({
+      _id: customerObjectId
+    });
+
+    if (!customer) {
+      return NextResponse.json(
+        { error: 'Customer not found' },
+        { status: 404 }
+      );
+    }
+
+    // Add new address
+    const newAddress = {
+      _id: new ObjectId(),
+      type: addressData.type || 'home',
+      street: addressData.street.trim(),
+      city: addressData.city.trim(),
+      state: addressData.state.trim(),
+      postalCode: addressData.postalCode.trim(),
+      country: addressData.country || 'India',
+      label: addressData.label || '',
+      location: addressData.location || null,
+      createdAt: new Date()
+    };
+
+    const result = await db.collection(COLLECTIONS.CUSTOMERS).updateOne(
+      { _id: customerObjectId },
+      { 
+        $push: { 
+          addresses: newAddress as any
+        } 
+      }
+    );
+
+    if (result.modifiedCount === 0) {
+      return NextResponse.json(
+        { error: 'Failed to add address' },
+        { status: 500 }
+      );
+    }
+
     return NextResponse.json(
       { 
-        id: "addr3", 
-        ...addressData,
-        isDefault: addressData.isDefault || false 
+        message: 'Address added successfully',
+        address: newAddress
       },
       { status: 201 }
     );
@@ -126,102 +179,4 @@ export async function POST(req: NextRequest) {
   }
 }
 
-// PUT /api/customer/addresses/:id - Update an address
-export async function PUT(req: NextRequest) {
-  try {
-    // Support both NextAuth and JWT authentication
-    let customerId: string | undefined;
-    
-    // First try getting customer ID from NextAuth session
-    const session = await getServerSession(authOptions);
-    if (session?.user?.id) {
-      customerId = session.user.id;
-    } else {
-      // Try JWT token if NextAuth session not available
-      const token = getToken(req);
-      if (token) {
-        const decodedToken = decodeToken(token);
-        if (decodedToken && decodedToken.id) {
-          customerId = decodedToken.id;
-        }
-      }
-    }
-    
-    if (!customerId) {
-      return NextResponse.json(
-        { error: "Unauthorized" },
-        { status: 401 }
-      );
-    }
-
-    const addressId = req.nextUrl.pathname.split('/').pop();
-    if (!addressId) {
-      return NextResponse.json(
-        { error: "Address ID not provided" },
-        { status: 400 }
-      );
-    }
-
-    const addressData = await req.json();
-    
-    // Mock successful response
-    return NextResponse.json(
-      { id: addressId, ...addressData }
-    );
-  } catch (error) {
-    console.error("Error updating address:", error);
-    return NextResponse.json(
-      { error: "Failed to update address" },
-      { status: 500 }
-    );
-  }
-}
-
-// DELETE /api/customer/addresses/:id - Delete an address
-export async function DELETE(req: NextRequest) {
-  try {
-    // Support both NextAuth and JWT authentication
-    let customerId: string | undefined;
-    
-    // First try getting customer ID from NextAuth session
-    const session = await getServerSession(authOptions);
-    if (session?.user?.id) {
-      customerId = session.user.id;
-    } else {
-      // Try JWT token if NextAuth session not available
-      const token = getToken(req);
-      if (token) {
-        const decodedToken = decodeToken(token);
-        if (decodedToken && decodedToken.id) {
-          customerId = decodedToken.id;
-        }
-      }
-    }
-    
-    if (!customerId) {
-      return NextResponse.json(
-        { error: "Unauthorized" },
-        { status: 401 }
-      );
-    }
-
-    const addressId = req.nextUrl.pathname.split('/').pop();
-    if (!addressId) {
-      return NextResponse.json(
-        { error: "Address ID not provided" },
-        { status: 400 }
-      );
-    }
-
-    // Mock successful response
-    return NextResponse.json(
-      { success: true, message: "Address deleted successfully" }
-    );
-  } catch (error) {
-    console.error("Error deleting address:", error);
-    return NextResponse.json(
-      { error: "Failed to delete address" },
-      { status: 500 }
-    );
-  }
-} 
+ 

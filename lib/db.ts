@@ -6,6 +6,7 @@ import Vendor from './models/Vendor';
 import Delivery from './models/Delivery';
 import DeliveryAgent from './models/DeliveryAgent';
 import mongoose from 'mongoose'; // Needed for ObjectId checks if required
+import { predefinedProductCatalog } from './predefinedProducts';
 
 // --- Database Functions (Refactored for Mongoose) --- 
 
@@ -21,8 +22,10 @@ export async function getProducts(limit = 20, skip = 0, category?: string) {
   query.isAvailable = true; 
   
   try {
-    // Add .lean() to return plain objects
-    return await Product.find(query).skip(skip).limit(limit).lean(); 
+    console.log('Fetching products with query:', query);
+    const products = await Product.find(query).skip(skip).limit(limit).lean();
+    console.log('Found products:', products);
+    return products;
   } catch (error) {
     console.error("Error fetching products:", error);
     return [];
@@ -89,6 +92,42 @@ export async function deleteProduct(id: string) {
   } catch (error) {
     console.error("Error deleting product:", error);
     throw new Error("Failed to delete product");
+  }
+}
+
+export async function seedProducts(vendorId: string) {
+  await mongooseConnect();
+  try {
+    // Check if we already have products
+    const existingProducts = await Product.countDocuments();
+    if (existingProducts > 0) {
+      console.log('Products already exist in database, skipping seed');
+      return;
+    }
+
+    // Convert predefined catalog to product documents
+    const products = predefinedProductCatalog.flatMap(baseProduct => 
+      baseProduct.variants.map(variant => ({
+        name: variant.name,
+        description: variant.description || baseProduct.baseName,
+        price: Math.floor(Math.random() * 500) + 10, // Random price between 10 and 510
+        unit: variant.unit,
+        category: baseProduct.category,
+        vendorId: vendorId,
+        stock: Math.floor(Math.random() * 100) + 1, // Random stock between 1 and 100
+        imageUrl: variant.imageUrl || '/placeholder.jpg',
+        isAvailable: true,
+        tags: [baseProduct.baseName, variant.name.split(' ')[0]],
+      }))
+    );
+
+    console.log('Seeding products:', products);
+    await Product.insertMany(products);
+    console.log('Successfully seeded products');
+    return products;
+  } catch (error) {
+    console.error("Error seeding products:", error);
+    throw error;
   }
 }
 

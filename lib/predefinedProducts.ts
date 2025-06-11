@@ -178,14 +178,14 @@ export interface Variant {
           name: 'Amul Full Cream Milk 1L',
           unit: 'liter',
           description: 'Fresh full-cream milk.',
-          imageUrl: '/images/catalog/amul-milk.jpg'
+          imageUrl: 'amul-butter-295.jpeg'
         },
         {
           id: 'pdp-107',
           name: 'Amul Skimmed Milk 1L',
           unit: 'liter',
           description: 'Fresh skimmed milk with reduced fat.',
-          imageUrl: '/images/catalog/amul-milk.jpg'
+          imageUrl: 'amul-butter-295.jpeg'
         }
       ]
     },
